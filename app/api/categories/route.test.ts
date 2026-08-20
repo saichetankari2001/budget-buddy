@@ -53,6 +53,9 @@ describe('POST /api/categories', () => {
 
     const res = await POST(makePostRequest({ name: 'Travel', color: '#1a2b3c' }));
     expect(res.status).toBe(201);
+    expect(prismaMock.category.create).toHaveBeenCalledWith({
+      data: { userId: 'user_1', name: 'Travel', color: '#1a2b3c' },
+    });
   });
 
   it('returns 400 for an invalid payload', async () => {
