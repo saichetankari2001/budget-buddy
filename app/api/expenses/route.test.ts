@@ -24,6 +24,26 @@ describe('GET /api/expenses', () => {
     );
   });
 
+  it('converts amount to a number in the response body', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.expense.findMany.mockResolvedValue([
+      {
+        id: 'exp_1',
+        userId: 'user_1',
+        categoryId: 'cat_1',
+        amount: { toString: () => '42.50' } as never,
+        description: 'Groceries',
+        date: new Date('2026-08-01T00:00:00.000Z'),
+        createdAt: new Date(),
+      } as never,
+    ]);
+
+    const res = await GET(new NextRequest('http://localhost/api/expenses'));
+    const json = await res.json();
+
+    expect(json[0].amount).toBe(42.5);
+  });
+
   it('applies categoryId and date range filters from the query string', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
     prismaMock.expense.findMany.mockResolvedValue([]);
@@ -76,7 +96,10 @@ describe('POST /api/expenses', () => {
       })
     );
 
+    const json = await res.json();
+
     expect(res.status).toBe(201);
+    expect(json.amount).toBe(42.5);
     expect(prismaMock.category.findFirst).toHaveBeenCalledWith({
       where: { id: 'cat_1', userId: 'user_1' },
     });

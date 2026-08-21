@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       orderBy: { date: 'desc' },
     });
 
-    return NextResponse.json(expenses);
+    return NextResponse.json(expenses.map((expense) => ({ ...expense, amount: Number(expense.amount) })));
   } catch (error) {
     return handleRouteError(error);
   }
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       data: { userId: user.userId, categoryId, amount, description, date: new Date(date) },
     });
 
-    return NextResponse.json(expense, { status: 201 });
+    return NextResponse.json({ ...expense, amount: Number(expense.amount) }, { status: 201 });
   } catch (error) {
     return handleRouteError(error);
   }

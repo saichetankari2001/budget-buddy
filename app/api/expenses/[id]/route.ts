@@ -15,6 +15,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const body = await request.json();
     const data = updateExpenseSchema.parse(body);
 
+    if (data.categoryId) {
+      const category = await prisma.category.findFirst({
+        where: { id: data.categoryId, userId: user.userId },
+      });
+      if (!category) {
+        throw new AppError(404, 'Category not found');
+      }
+    }
+
     const { count } = await prisma.expense.updateMany({
       where: { id: params.id, userId: user.userId },
       data: { ...data, ...(data.date ? { date: new Date(data.date) } : {}) },
@@ -25,7 +34,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const expense = await prisma.expense.findFirst({ where: { id: params.id, userId: user.userId } });
-    return NextResponse.json(expense);
+    return NextResponse.json(expense ? { ...expense, amount: Number(expense.amount) } : expense);
   } catch (error) {
     return handleRouteError(error);
   }

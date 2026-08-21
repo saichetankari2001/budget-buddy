@@ -31,8 +31,10 @@ describe('PATCH /api/expenses/[id]', () => {
       body: JSON.stringify({ description: 'Updated' }),
     });
     const res = await PATCH(req, { params: { id: 'exp_1' } });
+    const json = await res.json();
 
     expect(res.status).toBe(200);
+    expect(json.amount).toBe(10);
     expect(prismaMock.expense.updateMany).toHaveBeenCalledWith({
       where: { id: 'exp_1', userId: 'user_1' },
       data: { description: 'Updated' },
@@ -53,6 +55,23 @@ describe('PATCH /api/expenses/[id]', () => {
     const res = await PATCH(req, { params: { id: 'exp_1' } });
 
     expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when the submitted categoryId does not belong to the current user', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.category.findFirst.mockResolvedValue(null);
+
+    const req = new NextRequest('http://localhost/api/expenses/exp_1', {
+      method: 'PATCH',
+      body: JSON.stringify({ categoryId: 'cat_other_user' }),
+    });
+    const res = await PATCH(req, { params: { id: 'exp_1' } });
+
+    expect(res.status).toBe(404);
+    expect(prismaMock.category.findFirst).toHaveBeenCalledWith({
+      where: { id: 'cat_other_user', userId: 'user_1' },
+    });
+    expect(prismaMock.expense.updateMany).not.toHaveBeenCalled();
   });
 });
 
