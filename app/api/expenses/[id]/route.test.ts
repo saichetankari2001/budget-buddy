@@ -37,6 +37,9 @@ describe('PATCH /api/expenses/[id]', () => {
       where: { id: 'exp_1', userId: 'user_1' },
       data: { description: 'Updated' },
     });
+    expect(prismaMock.expense.findFirst).toHaveBeenCalledWith({
+      where: { id: 'exp_1', userId: 'user_1' },
+    });
   });
 
   it("returns 404 when the expense doesn't belong to the current user", async () => {
