@@ -16,7 +16,7 @@ export function ExpensesClient({
   categories,
   initialExpenses,
 }: {
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; color: string }[];
   initialExpenses: Expense[];
 }) {
   const [expenses, setExpenses] = useState(initialExpenses);
@@ -29,25 +29,36 @@ export function ExpensesClient({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error ?? 'Failed to save expense');
+      return;
+    }
     const created = await res.json();
     const category = categories.find((c) => c.id === created.categoryId)!;
     setExpenses((prev) => [
-      { ...created, amount: Number(created.amount), category: { ...category, color: '' } },
+      { ...created, amount: Number(created.amount), category },
       ...prev,
     ]);
     setShowAddForm(false);
   }
 
   async function handleUpdate(id: string, data: CreateExpenseInput) {
-    await fetch(`/api/expenses/${id}`, {
+    const res = await fetch(`/api/expenses/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error ?? 'Failed to save expense');
+      return;
+    }
+    const category = categories.find((c) => c.id === data.categoryId)!;
     setExpenses((prev) =>
       prev.map((e) =>
         e.id === id
-          ? { ...e, amount: data.amount, description: data.description, date: data.date }
+          ? { ...e, amount: data.amount, description: data.description, date: data.date, category }
           : e
       )
     );
@@ -55,7 +66,12 @@ export function ExpensesClient({
   }
 
   async function handleDelete(id: string) {
-    await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error ?? 'Failed to delete expense');
+      return;
+    }
     setExpenses((prev) => prev.filter((e) => e.id !== id));
   }
 
