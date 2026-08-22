@@ -7,6 +7,7 @@ import { ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/expenses', label: 'Expenses' },
+  { href: '/budgets', label: 'Budgets' },
 ];
 
 export function Header() {
