@@ -2,6 +2,8 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -34,36 +36,37 @@ export default function SignupPage() {
 
   return (
     <main className="mx-auto mt-24 max-w-sm px-4">
-      <h1 className="mb-6 text-2xl font-semibold">Create your account</h1>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <input
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
-        />
-        <input
-          type="password"
-          required
-          placeholder="Password (8+ characters)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-gray-900 px-3 py-2 text-white disabled:opacity-50"
-        >
-          {submitting ? 'Creating account…' : 'Sign up'}
-        </button>
-      </form>
-      <p className="mt-4 text-sm">
-        Already have an account? <a href="/login" className="underline">Log in</a>
-      </p>
+      <Card>
+        <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Create your account</h1>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <input
+            type="email"
+            required
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="rounded-xl border border-border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <input
+            type="password"
+            required
+            placeholder="Password (8+ characters)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="rounded-xl border border-border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button type="submit" disabled={submitting}>
+            {submitting ? 'Creating account…' : 'Sign up'}
+          </Button>
+        </form>
+        <p className="mt-4 text-sm text-muted">
+          Already have an account?{' '}
+          <a href="/login" className="text-primary underline">
+            Log in
+          </a>
+        </p>
+      </Card>
     </main>
   );
 }
