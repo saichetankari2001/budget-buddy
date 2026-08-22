@@ -6,6 +6,7 @@ import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
 import { CountUpStat } from '@/components/ui/CountUpStat';
+import { BudgetProgress } from '@/components/ui/BudgetProgress';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -37,6 +38,18 @@ export default async function DashboardPage() {
   const monthlyTotals = aggregateByMonth(expensesForAggregation, 6);
   const totalThisMonth = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
+  const budgets = await prisma.budget.findMany({
+    where: { userId: user.userId },
+    include: { category: true },
+  });
+  const spentByCategory = new Map(categoryTotals.map((c) => [c.categoryId, c.total]));
+  const budgetItems = budgets.map((budget) => ({
+    categoryId: budget.categoryId,
+    categoryName: budget.category.name,
+    spent: spentByCategory.get(budget.categoryId) ?? 0,
+    limit: Number(budget.monthlyLimit),
+  }));
+
   return (
     <>
       <Header />
@@ -48,7 +61,7 @@ export default async function DashboardPage() {
           <CountUpStat value={totalThisMonth} />
         </Card>
 
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="mb-6 grid gap-6 sm:grid-cols-2">
           <Card hoverable>
             <h2 className="mb-3 font-heading font-medium text-foreground">
               Spending by category (this month)
@@ -60,6 +73,11 @@ export default async function DashboardPage() {
             <MonthlyTrendChart data={monthlyTotals} />
           </Card>
         </div>
+
+        <Card>
+          <h2 className="mb-3 font-heading font-medium text-foreground">Budget progress</h2>
+          <BudgetProgress items={budgetItems} />
+        </Card>
       </main>
     </>
   );
