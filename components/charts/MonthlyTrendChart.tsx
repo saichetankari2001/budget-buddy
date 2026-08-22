@@ -5,18 +5,21 @@ import { MonthlyTotal } from '@/lib/utils/expenseAggregation';
 
 export function MonthlyTrendChart({ data }: { data: MonthlyTotal[] }) {
   if (data.length === 0) {
-    return <p className="text-sm text-gray-500">No spending history yet.</p>;
+    return <p className="text-sm text-muted">No spending history yet.</p>;
   }
 
   return (
     <div data-testid="monthly-trend-chart">
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="month" />
-          <YAxis />
-          <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
-          <Line type="monotone" dataKey="total" stroke="#111827" strokeWidth={2} dot />
+          <CartesianGrid strokeDasharray="3 3" stroke="#E0E7FF" />
+          <XAxis dataKey="month" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
+          <YAxis stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
+          <Tooltip
+            formatter={(value: number) => `$${value.toFixed(2)}`}
+            contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E0E7FF', borderRadius: '0.75rem' }}
+          />
+          <Line type="monotone" dataKey="total" stroke="#6366F1" strokeWidth={2} dot />
         </LineChart>
       </ResponsiveContainer>
     </div>
