@@ -10,6 +10,7 @@ export function CountUpStat({ value, prefix = '$' }: { value: number; prefix?: s
   const startRef = useRef<number | null>(null);
 
   useEffect(() => {
+    startRef.current = null;
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReducedMotion) {
       setDisplay(value);
