@@ -14,6 +14,7 @@ model User {
   createdAt    DateTime   @default(now())
   categories   Category[]
   expenses     Expense[]
+  budgets      Budget[]
 }
 
 model Category {
@@ -24,6 +25,7 @@ model Category {
   color     String
   createdAt DateTime  @default(now())
   expenses  Expense[]
+  budgets   Budget[]
 
   @@unique([userId, name])
 }
@@ -40,4 +42,16 @@ model Expense {
   createdAt   DateTime @default(now())
 
   @@index([userId, date])
+}
+
+model Budget {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  monthlyLimit Decimal  @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, categoryId])
 }
