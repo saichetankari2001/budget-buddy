@@ -3,6 +3,9 @@ import { getCurrentUser } from '@/lib/auth/session';
 import { aggregateByCategory, aggregateByMonth } from '@/lib/utils/expenseAggregation';
 import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
 import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
+import { Header } from '@/components/ui/Header';
+import { Card } from '@/components/ui/Card';
+import { CountUpStat } from '@/components/ui/CountUpStat';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -35,29 +38,29 @@ export default async function DashboardPage() {
   const totalThisMonth = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <a href="/expenses" className="text-sm underline">
-          View all expenses
-        </a>
-      </div>
+    <>
+      <Header />
+      <main className="mx-auto max-w-4xl px-4 py-8">
+        <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Dashboard</h1>
 
-      <div className="mb-8 rounded border border-gray-200 p-4">
-        <p className="text-sm text-gray-500">Total spent this month</p>
-        <p className="text-3xl font-semibold">${totalThisMonth.toFixed(2)}</p>
-      </div>
+        <Card className="mb-8">
+          <p className="text-sm text-muted">Total spent this month</p>
+          <CountUpStat value={totalThisMonth} />
+        </Card>
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <section className="rounded border border-gray-200 p-4">
-          <h2 className="mb-3 font-medium">Spending by category (this month)</h2>
-          <CategoryPieChart data={categoryTotals} />
-        </section>
-        <section className="rounded border border-gray-200 p-4">
-          <h2 className="mb-3 font-medium">6-month trend</h2>
-          <MonthlyTrendChart data={monthlyTotals} />
-        </section>
-      </div>
-    </main>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <Card hoverable>
+            <h2 className="mb-3 font-heading font-medium text-foreground">
+              Spending by category (this month)
+            </h2>
+            <CategoryPieChart data={categoryTotals} />
+          </Card>
+          <Card hoverable>
+            <h2 className="mb-3 font-heading font-medium text-foreground">6-month trend</h2>
+            <MonthlyTrendChart data={monthlyTotals} />
+          </Card>
+        </div>
+      </main>
+    </>
   );
 }
