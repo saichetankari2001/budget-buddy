@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from 'react';
 import { CreateExpenseInput } from '@/lib/validation/expense.schema';
+import { Button } from '@/components/ui/Button';
 
 interface ExpenseFormProps {
   categories: { id: string; name: string }[];
@@ -28,9 +29,12 @@ export function ExpenseForm({ categories, initialValues, onSubmit }: ExpenseForm
     setSubmitting(false);
   }
 
+  const inputClasses =
+    'rounded-xl border border-border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary';
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <label className="flex flex-col text-sm">
+      <label className="flex flex-col text-sm text-foreground">
         Amount
         <input
           type="number"
@@ -39,26 +43,22 @@ export function ExpenseForm({ categories, initialValues, onSubmit }: ExpenseForm
           required
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
+          className={inputClasses}
         />
       </label>
-      <label className="flex flex-col text-sm">
+      <label className="flex flex-col text-sm text-foreground">
         Description
         <input
           type="text"
           required
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
+          className={inputClasses}
         />
       </label>
-      <label className="flex flex-col text-sm">
+      <label className="flex flex-col text-sm text-foreground">
         Category
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
-        >
+        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClasses}>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -66,23 +66,19 @@ export function ExpenseForm({ categories, initialValues, onSubmit }: ExpenseForm
           ))}
         </select>
       </label>
-      <label className="flex flex-col text-sm">
+      <label className="flex flex-col text-sm text-foreground">
         Date
         <input
           type="date"
           required
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
+          className={inputClasses}
         />
       </label>
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded bg-gray-900 px-3 py-2 text-white disabled:opacity-50"
-      >
+      <Button type="submit" disabled={submitting}>
         {submitting ? 'Saving…' : 'Save'}
-      </button>
+      </Button>
     </form>
   );
 }

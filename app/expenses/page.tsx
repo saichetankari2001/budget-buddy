@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth/session';
 import { ExpenseFilters } from '@/components/expenses/ExpenseFilters';
 import { ExpensesClient } from './ExpensesClient';
+import { Header } from '@/components/ui/Header';
 
 export default async function ExpensesPage({
   searchParams,
@@ -39,15 +40,13 @@ export default async function ExpensesPage({
   }));
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Expenses</h1>
-        <a href="/dashboard" className="text-sm underline">
-          Back to dashboard
-        </a>
-      </div>
-      <ExpenseFilters categories={categories} />
-      <ExpensesClient categories={categories} initialExpenses={serialized} />
-    </main>
+    <>
+      <Header />
+      <main className="mx-auto max-w-3xl px-4 py-8">
+        <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Expenses</h1>
+        <ExpenseFilters categories={categories} />
+        <ExpensesClient categories={categories} initialExpenses={serialized} />
+      </main>
+    </>
   );
 }

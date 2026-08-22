@@ -21,7 +21,7 @@ export function ExpenseFilters({ categories }: { categories: { id: string; name:
       <select
         value={searchParams.get('categoryId') ?? ''}
         onChange={(e) => updateFilter('categoryId', e.target.value)}
-        className="rounded border border-gray-300 px-2 py-1"
+        className="rounded-xl border border-border px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
       >
         <option value="">All categories</option>
         {categories.map((c) => (
@@ -34,13 +34,13 @@ export function ExpenseFilters({ categories }: { categories: { id: string; name:
         type="date"
         value={searchParams.get('from') ?? ''}
         onChange={(e) => updateFilter('from', e.target.value ? new Date(e.target.value).toISOString() : '')}
-        className="rounded border border-gray-300 px-2 py-1"
+        className="rounded-xl border border-border px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
       />
       <input
         type="date"
         value={searchParams.get('to') ?? ''}
         onChange={(e) => updateFilter('to', e.target.value ? new Date(e.target.value).toISOString() : '')}
-        className="rounded border border-gray-300 px-2 py-1"
+        className="rounded-xl border border-border px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
       />
     </div>
   );

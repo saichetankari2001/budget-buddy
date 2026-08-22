@@ -1,7 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { ExpenseForm } from '@/components/expenses/ExpenseForm';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { IconButton } from '@/components/ui/IconButton';
 import { CreateExpenseInput } from '@/lib/validation/expense.schema';
 
 interface Expense {
@@ -36,10 +40,7 @@ export function ExpensesClient({
     }
     const created = await res.json();
     const category = categories.find((c) => c.id === created.categoryId)!;
-    setExpenses((prev) => [
-      { ...created, amount: Number(created.amount), category },
-      ...prev,
-    ]);
+    setExpenses((prev) => [{ ...created, amount: Number(created.amount), category }, ...prev]);
     setShowAddForm(false);
   }
 
@@ -77,58 +78,61 @@ export function ExpensesClient({
 
   return (
     <div>
-      <button
-        onClick={() => setShowAddForm((v) => !v)}
-        className="mb-4 rounded bg-gray-900 px-3 py-2 text-sm text-white"
-      >
+      <Button onClick={() => setShowAddForm((v) => !v)} variant="secondary" className="mb-4">
         {showAddForm ? 'Cancel' : 'Add expense'}
-      </button>
+      </Button>
 
       {showAddForm && (
-        <div className="mb-6 rounded border border-gray-200 p-4">
+        <Card className="mb-6">
           <ExpenseForm categories={categories} onSubmit={handleCreate} />
-        </div>
+        </Card>
       )}
 
       <ul className="flex flex-col gap-2">
-        {expenses.map((expense) =>
+        {expenses.map((expense, index) =>
           editingId === expense.id ? (
-            <li key={expense.id} className="rounded border border-gray-200 p-4">
-              <ExpenseForm
-                categories={categories}
-                initialValues={{
-                  amount: expense.amount,
-                  description: expense.description,
-                  categoryId: expense.category.id,
-                  date: expense.date.slice(0, 10),
-                }}
-                onSubmit={(data) => handleUpdate(expense.id, data)}
-              />
+            <li key={expense.id}>
+              <Card>
+                <ExpenseForm
+                  categories={categories}
+                  initialValues={{
+                    amount: expense.amount,
+                    description: expense.description,
+                    categoryId: expense.category.id,
+                    date: expense.date.slice(0, 10),
+                  }}
+                  onSubmit={(data) => handleUpdate(expense.id, data)}
+                />
+              </Card>
             </li>
           ) : (
             <li
               key={expense.id}
-              className="flex items-center justify-between rounded border border-gray-200 p-3 text-sm"
+              className="animate-fade-slide-in motion-reduce:animate-none"
+              style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
             >
-              <div>
-                <p className="font-medium">{expense.description}</p>
-                <p className="text-gray-500">
-                  {expense.category.name} · {new Date(expense.date).toLocaleDateString()}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="font-medium">${expense.amount.toFixed(2)}</span>
-                <button onClick={() => setEditingId(expense.id)} className="underline">
-                  Edit
-                </button>
-                <button onClick={() => handleDelete(expense.id)} className="text-red-600 underline">
-                  Delete
-                </button>
-              </div>
+              <Card className="flex items-center justify-between text-sm">
+                <div>
+                  <p className="font-medium text-foreground">{expense.description}</p>
+                  <p className="text-muted">
+                    {expense.category.name} · {new Date(expense.date).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-foreground">${expense.amount.toFixed(2)}</span>
+                  <IconButton icon={PencilIcon} label="Edit" onClick={() => setEditingId(expense.id)} />
+                  <IconButton
+                    icon={TrashIcon}
+                    label="Delete"
+                    variant="destructive"
+                    onClick={() => handleDelete(expense.id)}
+                  />
+                </div>
+              </Card>
             </li>
           )
         )}
-        {expenses.length === 0 && <p className="text-sm text-gray-500">No expenses match these filters.</p>}
+        {expenses.length === 0 && <p className="text-sm text-muted">No expenses match these filters.</p>}
       </ul>
     </div>
   );
