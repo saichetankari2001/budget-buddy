@@ -8,7 +8,7 @@ vi.mock('@/lib/auth/session', () => ({
 }));
 
 import { getCurrentUser } from '@/lib/auth/session';
-import { PUT } from './route';
+import { PUT, DELETE } from './route';
 
 const mockUser = { userId: 'user_1', email: 'a@example.com' };
 
@@ -65,5 +65,30 @@ describe('PUT /api/budgets/[categoryId]', () => {
     const res = await PUT(makePutRequest({ monthlyLimit: 0 }), { params: { categoryId: 'cat_1' } });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe('DELETE /api/budgets/[categoryId]', () => {
+  it('deletes a budget scoped to the current user', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.budget.deleteMany.mockResolvedValue({ count: 1 });
+
+    const req = new NextRequest('http://localhost/api/budgets/cat_1', { method: 'DELETE' });
+    const res = await DELETE(req, { params: { categoryId: 'cat_1' } });
+
+    expect(res.status).toBe(204);
+    expect(prismaMock.budget.deleteMany).toHaveBeenCalledWith({
+      where: { categoryId: 'cat_1', userId: 'user_1' },
+    });
+  });
+
+  it('returns 401 when not logged in', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+
+    const req = new NextRequest('http://localhost/api/budgets/cat_1', { method: 'DELETE' });
+    const res = await DELETE(req, { params: { categoryId: 'cat_1' } });
+
+    expect(res.status).toBe(401);
+    expect(prismaMock.budget.deleteMany).not.toHaveBeenCalled();
   });
 });

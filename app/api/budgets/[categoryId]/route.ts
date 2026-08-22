@@ -33,3 +33,18 @@ export async function PUT(request: NextRequest, { params }: { params: { category
     return handleRouteError(error);
   }
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: { categoryId: string } }) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      throw new AppError(401, 'Not authenticated');
+    }
+
+    await prisma.budget.deleteMany({ where: { categoryId: params.categoryId, userId: user.userId } });
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
