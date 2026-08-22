@@ -48,6 +48,32 @@ interactive cards, 150–200ms transitions, `hover:scale-[1.02]` on clickable ca
 links like "Edit"/"Delete" with icon+label buttons. No emoji anywhere (matches existing
 codebase convention).
 
+## Motion & Polish Layer
+
+Keeps the Indigo Bento palette/typography but adds the "advanced/futuristic" feel the
+user asked for, without a full redesign. All motion respects `prefers-reduced-motion`
+(per the ui-ux-pro-max `reduced-motion` and `animation-optional` guidelines) — every
+animation below degrades to an instant state change when that's set.
+
+- **Count-up stat animation** — the dashboard's "Total spent this month" number animates
+  from 0 to its value over ~600ms on mount (`requestAnimationFrame`-driven, no library
+  needed for a single number).
+- **Staggered list entrance** — expense list rows fade+slide in with a ~30ms stagger per
+  row (capped at the first ~10 rows to avoid a long wait on large lists), matching the
+  `stagger-sequence` guideline (30-50ms/item).
+- **Chart entrance animation** — Recharts' built-in `isAnimationActive` (already on by
+  default) is kept, tuned to ~400ms ease-out; no custom animation code needed here.
+- **Primary button glow/gradient** — primary buttons get a subtle `bg-gradient-to-r
+  from-primary to-indigo-500` background and a soft glow (`shadow-[0_0_20px_rgba(99,102,241,0.3)]`)
+  on hover — the one deliberately "futuristic" visual accent, used sparingly (primary
+  CTAs only, not every button) so it reads as intentional rather than decorative clutter.
+- **Card hover lift** — already-specified `hover:scale-[1.02]` gets a matching
+  `hover:shadow-md` transition (150-200ms, `ease-out`) for a cohesive lift effect.
+
+No page-transition/routing animation, no parallax, no 3D effects — those would be
+disproportionate decoration for a data-entry app and would hurt perceived performance
+for the actual job (reading your spending clearly).
+
 ## New Shared Components
 
 All in `components/ui/`, each a small, single-purpose Client or Server Component as
