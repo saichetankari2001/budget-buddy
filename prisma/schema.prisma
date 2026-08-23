@@ -7,6 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum RecurrenceInterval {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -31,15 +37,20 @@ model Category {
 }
 
 model Expense {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
-  amount      Decimal  @db.Decimal(10, 2)
-  description String
-  date        DateTime
-  createdAt   DateTime @default(now())
+  id                 String              @id @default(cuid())
+  userId             String
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId         String
+  category           Category            @relation(fields: [categoryId], references: [id])
+  amount             Decimal             @db.Decimal(10, 2)
+  description        String
+  date               DateTime
+  createdAt          DateTime            @default(now())
+  isRecurring        Boolean             @default(false)
+  recurrenceInterval RecurrenceInterval?
+  recurringSourceId  String?
+  recurringSource    Expense?            @relation("RecurringInstances", fields: [recurringSourceId], references: [id], onDelete: SetNull)
+  recurringInstances Expense[]           @relation("RecurringInstances")
 
   @@index([userId, date])
 }
