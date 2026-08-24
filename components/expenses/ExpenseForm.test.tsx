@@ -34,4 +34,44 @@ describe('ExpenseForm', () => {
     );
     expect(screen.getByLabelText(/description/i)).toHaveValue('Coffee');
   });
+
+  it('shows the interval select only when Repeat is checked', () => {
+    render(<ExpenseForm categories={categories} onSubmit={vi.fn()} />);
+
+    expect(screen.queryByLabelText(/repeat interval/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/^repeat$/i));
+
+    expect(screen.getByLabelText(/repeat interval/i)).toBeInTheDocument();
+  });
+
+  it('submits isRecurring and recurrenceInterval when Repeat is checked', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<ExpenseForm categories={categories} onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '15' } });
+    fireEvent.change(screen.getByLabelText(/description/i), { target: { value: 'Netflix' } });
+    fireEvent.click(screen.getByLabelText(/^repeat$/i));
+    fireEvent.change(screen.getByLabelText(/repeat interval/i), { target: { value: 'YEARLY' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ isRecurring: true, recurrenceInterval: 'YEARLY' })
+    );
+  });
+
+  it('submits isRecurring false and no recurrenceInterval when Repeat is unchecked', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<ExpenseForm categories={categories} onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '15' } });
+    fireEvent.change(screen.getByLabelText(/description/i), { target: { value: 'Coffee' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ isRecurring: false, recurrenceInterval: undefined })
+    );
+  });
 });
