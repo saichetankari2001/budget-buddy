@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { ExpenseForm } from '@/components/expenses/ExpenseForm';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +13,8 @@ interface Expense {
   amount: number;
   description: string;
   date: string;
+  isRecurring: boolean;
+  recurrenceInterval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY';
   category: { id: string; name: string; color: string };
 }
 
@@ -59,7 +61,15 @@ export function ExpensesClient({
     setExpenses((prev) =>
       prev.map((e) =>
         e.id === id
-          ? { ...e, amount: data.amount, description: data.description, date: data.date, category }
+          ? {
+              ...e,
+              amount: data.amount,
+              description: data.description,
+              date: data.date,
+              isRecurring: data.isRecurring ?? false,
+              recurrenceInterval: data.recurrenceInterval,
+              category,
+            }
           : e
       )
     );
@@ -100,6 +110,8 @@ export function ExpensesClient({
                     description: expense.description,
                     categoryId: expense.category.id,
                     date: expense.date.slice(0, 10),
+                    isRecurring: expense.isRecurring,
+                    recurrenceInterval: expense.recurrenceInterval,
                   }}
                   onSubmit={(data) => handleUpdate(expense.id, data)}
                 />
@@ -113,7 +125,12 @@ export function ExpensesClient({
             >
               <Card className="flex items-center justify-between text-sm">
                 <div>
-                  <p className="font-medium text-foreground">{expense.description}</p>
+                  <p className="flex items-center gap-1 font-medium text-foreground">
+                    {expense.description}
+                    {expense.isRecurring && (
+                      <ArrowPathIcon className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                    )}
+                  </p>
                   <p className="text-muted">
                     {expense.category.name} · {new Date(expense.date).toLocaleDateString()}
                   </p>

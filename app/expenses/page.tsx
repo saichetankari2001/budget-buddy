@@ -36,6 +36,8 @@ export default async function ExpensesPage({
     amount: Number(e.amount),
     description: e.description,
     date: e.date.toISOString(),
+    isRecurring: e.isRecurring,
+    recurrenceInterval: e.recurrenceInterval ?? undefined,
     category: { id: e.category.id, name: e.category.name, color: e.category.color },
   }));
 
