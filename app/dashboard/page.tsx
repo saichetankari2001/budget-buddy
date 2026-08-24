@@ -7,12 +7,15 @@ import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
 import { CountUpStat } from '@/components/ui/CountUpStat';
 import { BudgetProgress } from '@/components/ui/BudgetProgress';
+import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   // middleware.ts already guarantees `user` is non-null for this route;
   // this check exists only to satisfy TypeScript.
   if (!user) return null;
+
+  await generateDueRecurringExpenses(user.userId);
 
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
