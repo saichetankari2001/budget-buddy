@@ -102,6 +102,37 @@ describe('PATCH /api/expenses/[id]', () => {
       data: { isRecurring: true, recurrenceInterval: 'YEARLY' },
     });
   });
+
+  it('clears recurrenceInterval when isRecurring is turned off without an explicit recurrenceInterval in the body', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.expense.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.expense.findFirst.mockResolvedValue({
+      id: 'exp_1',
+      userId: 'user_1',
+      categoryId: 'cat_1',
+      amount: { toString: () => '15.00' } as never,
+      description: 'Netflix',
+      date: new Date('2026-08-01T00:00:00.000Z'),
+      createdAt: new Date(),
+      isRecurring: false,
+      recurrenceInterval: null,
+      recurringSourceId: null,
+    } as never);
+
+    const req = new NextRequest('http://localhost/api/expenses/exp_1', {
+      method: 'PATCH',
+      // Simulates the UI unchecking "Repeat": recurrenceInterval is undefined
+      // and dropped by JSON.stringify, so it never appears in the body.
+      body: JSON.stringify({ isRecurring: false }),
+    });
+    const res = await PATCH(req, { params: { id: 'exp_1' } });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.expense.updateMany).toHaveBeenCalledWith({
+      where: { id: 'exp_1', userId: 'user_1' },
+      data: { isRecurring: false, recurrenceInterval: null },
+    });
+  });
 });
 
 describe('DELETE /api/expenses/[id]', () => {

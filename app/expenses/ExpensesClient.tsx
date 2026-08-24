@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import type { RecurrenceInterval } from '@prisma/client';
 import { ExpenseForm } from '@/components/expenses/ExpenseForm';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -14,7 +15,7 @@ interface Expense {
   description: string;
   date: string;
   isRecurring: boolean;
-  recurrenceInterval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  recurrenceInterval?: RecurrenceInterval;
   category: { id: string; name: string; color: string };
 }
 

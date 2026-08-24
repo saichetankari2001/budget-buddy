@@ -15,7 +15,13 @@ export default async function DashboardPage() {
   // this check exists only to satisfy TypeScript.
   if (!user) return null;
 
-  await generateDueRecurringExpenses(user.userId);
+  try {
+    await generateDueRecurringExpenses(user.userId);
+  } catch (error) {
+    // A generation hiccup (e.g. a transient DB error) shouldn't block the
+    // user from viewing their existing dashboard data.
+    console.error('Failed to generate recurring expenses:', error);
+  }
 
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);

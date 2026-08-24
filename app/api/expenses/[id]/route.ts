@@ -26,7 +26,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const { count } = await prisma.expense.updateMany({
       where: { id: params.id, userId: user.userId },
-      data: { ...data, ...(data.date ? { date: new Date(data.date) } : {}) },
+      data: {
+        ...data,
+        ...(data.date ? { date: new Date(data.date) } : {}),
+        ...(data.isRecurring === false ? { recurrenceInterval: null } : {}),
+      },
     });
 
     if (count === 0) {

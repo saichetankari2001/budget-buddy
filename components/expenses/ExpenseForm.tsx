@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import type { RecurrenceInterval } from '@prisma/client';
 import { CreateExpenseInput } from '@/lib/validation/expense.schema';
 import { Button } from '@/components/ui/Button';
-
-type Interval = 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 
 interface ExpenseFormProps {
   categories: { id: string; name: string }[];
@@ -14,7 +13,7 @@ interface ExpenseFormProps {
     categoryId?: string;
     date?: string;
     isRecurring?: boolean;
-    recurrenceInterval?: Interval;
+    recurrenceInterval?: RecurrenceInterval;
   };
   onSubmit: (data: CreateExpenseInput) => Promise<void>;
 }
@@ -25,7 +24,7 @@ export function ExpenseForm({ categories, initialValues, onSubmit }: ExpenseForm
   const [categoryId, setCategoryId] = useState(initialValues?.categoryId ?? categories[0]?.id ?? '');
   const [date, setDate] = useState(initialValues?.date ?? new Date().toISOString().slice(0, 10));
   const [isRecurring, setIsRecurring] = useState(initialValues?.isRecurring ?? false);
-  const [recurrenceInterval, setRecurrenceInterval] = useState<Interval>(
+  const [recurrenceInterval, setRecurrenceInterval] = useState<RecurrenceInterval>(
     initialValues?.recurrenceInterval ?? 'MONTHLY'
   );
   const [submitting, setSubmitting] = useState(false);
@@ -105,7 +104,7 @@ export function ExpenseForm({ categories, initialValues, onSubmit }: ExpenseForm
           Repeat interval
           <select
             value={recurrenceInterval}
-            onChange={(e) => setRecurrenceInterval(e.target.value as Interval)}
+            onChange={(e) => setRecurrenceInterval(e.target.value as RecurrenceInterval)}
             className={inputClasses}
           >
             <option value="WEEKLY">Weekly</option>
