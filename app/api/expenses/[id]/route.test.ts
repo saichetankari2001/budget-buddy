@@ -73,6 +73,35 @@ describe('PATCH /api/expenses/[id]', () => {
     });
     expect(prismaMock.expense.updateMany).not.toHaveBeenCalled();
   });
+
+  it('updates isRecurring and recurrenceInterval via a partial update', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.expense.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.expense.findFirst.mockResolvedValue({
+      id: 'exp_1',
+      userId: 'user_1',
+      categoryId: 'cat_1',
+      amount: { toString: () => '15.00' } as never,
+      description: 'Netflix',
+      date: new Date('2026-08-01T00:00:00.000Z'),
+      createdAt: new Date(),
+      isRecurring: true,
+      recurrenceInterval: 'YEARLY',
+      recurringSourceId: null,
+    } as never);
+
+    const req = new NextRequest('http://localhost/api/expenses/exp_1', {
+      method: 'PATCH',
+      body: JSON.stringify({ isRecurring: true, recurrenceInterval: 'YEARLY' }),
+    });
+    const res = await PATCH(req, { params: { id: 'exp_1' } });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.expense.updateMany).toHaveBeenCalledWith({
+      where: { id: 'exp_1', userId: 'user_1' },
+      data: { isRecurring: true, recurrenceInterval: 'YEARLY' },
+    });
+  });
 });
 
 describe('DELETE /api/expenses/[id]', () => {

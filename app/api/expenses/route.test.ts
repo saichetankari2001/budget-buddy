@@ -133,4 +133,54 @@ describe('POST /api/expenses', () => {
     expect(res.status).toBe(404);
     expect(prismaMock.expense.create).not.toHaveBeenCalled();
   });
+
+  it('creates a recurring expense with isRecurring and recurrenceInterval', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.category.findFirst.mockResolvedValue({
+      id: 'cat_1',
+      userId: 'user_1',
+      name: 'Food',
+      color: '#f97316',
+      createdAt: new Date(),
+    });
+    prismaMock.expense.create.mockResolvedValue({
+      id: 'exp_1',
+      userId: 'user_1',
+      categoryId: 'cat_1',
+      amount: { toString: () => '15.00' } as never,
+      description: 'Netflix',
+      date: new Date('2026-08-01T00:00:00.000Z'),
+      createdAt: new Date(),
+      isRecurring: true,
+      recurrenceInterval: 'MONTHLY',
+      recurringSourceId: null,
+    } as never);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/expenses', {
+        method: 'POST',
+        body: JSON.stringify({
+          amount: 15,
+          description: 'Netflix',
+          categoryId: 'cat_1',
+          date: '2026-08-01T00:00:00.000Z',
+          isRecurring: true,
+          recurrenceInterval: 'MONTHLY',
+        }),
+      })
+    );
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.expense.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'user_1',
+        categoryId: 'cat_1',
+        amount: 15,
+        description: 'Netflix',
+        date: new Date('2026-08-01T00:00:00.000Z'),
+        isRecurring: true,
+        recurrenceInterval: 'MONTHLY',
+      },
+    });
+  });
 });

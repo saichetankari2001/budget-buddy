@@ -46,7 +46,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { amount, description, categoryId, date } = createExpenseSchema.parse(body);
+    const { amount, description, categoryId, date, isRecurring, recurrenceInterval } =
+      createExpenseSchema.parse(body);
 
     const category = await prisma.category.findFirst({
       where: { id: categoryId, userId: user.userId },
@@ -56,7 +57,15 @@ export async function POST(request: NextRequest) {
     }
 
     const expense = await prisma.expense.create({
-      data: { userId: user.userId, categoryId, amount, description, date: new Date(date) },
+      data: {
+        userId: user.userId,
+        categoryId,
+        amount,
+        description,
+        date: new Date(date),
+        ...(isRecurring !== undefined ? { isRecurring } : {}),
+        ...(recurrenceInterval !== undefined ? { recurrenceInterval } : {}),
+      },
     });
 
     return NextResponse.json({ ...expense, amount: Number(expense.amount) }, { status: 201 });
