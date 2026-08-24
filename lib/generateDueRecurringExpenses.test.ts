@@ -14,7 +14,7 @@ const template = {
   isRecurring: true,
   recurrenceInterval: 'MONTHLY',
   recurringSourceId: null,
-} as never;
+};
 
 describe('generateDueRecurringExpenses', () => {
   it('creates a missing instance for a due monthly recurring expense', async () => {
