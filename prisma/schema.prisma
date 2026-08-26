@@ -29,6 +29,7 @@ model Category {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   color     String
+  isGstFree Boolean   @default(false)
   createdAt DateTime  @default(now())
   expenses  Expense[]
   budgets   Budget[]
