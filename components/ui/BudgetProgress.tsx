@@ -1,3 +1,5 @@
+import { formatCurrency } from '@/lib/utils/currency';
+
 export interface BudgetProgressItem {
   categoryId: string;
   categoryName: string;
@@ -21,7 +23,7 @@ export function BudgetProgress({ items }: { items: BudgetProgressItem[] }) {
             <div className="mb-1 flex items-center justify-between text-sm">
               <span className="font-medium text-foreground">{item.categoryName}</span>
               <span className={overBudget ? 'font-medium text-destructive' : 'text-muted'}>
-                ${item.spent.toFixed(2)} / ${item.limit.toFixed(2)}
+                {formatCurrency(item.spent)} / {formatCurrency(item.limit)}
               </span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-background">
@@ -34,7 +36,7 @@ export function BudgetProgress({ items }: { items: BudgetProgressItem[] }) {
             </div>
             {overBudget && (
               <p className="mt-1 text-xs text-destructive">
-                ${(item.spent - item.limit).toFixed(2)} over budget
+                {formatCurrency(item.spent - item.limit)} over budget
               </p>
             )}
           </li>

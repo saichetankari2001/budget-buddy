@@ -2,6 +2,7 @@
 
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { MonthlyTotal } from '@/lib/utils/expenseAggregation';
+import { formatCurrency } from '@/lib/utils/currency';
 
 export function MonthlyTrendChart({ data }: { data: MonthlyTotal[] }) {
   if (data.length === 0) {
@@ -16,7 +17,7 @@ export function MonthlyTrendChart({ data }: { data: MonthlyTotal[] }) {
           <XAxis dataKey="month" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
           <YAxis stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
           <Tooltip
-            formatter={(value: number) => `$${value.toFixed(2)}`}
+            formatter={(value: number) => formatCurrency(value)}
             contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E0E7FF', borderRadius: '0.75rem' }}
           />
           <Line type="monotone" dataKey="total" stroke="#6366F1" strokeWidth={2} dot />

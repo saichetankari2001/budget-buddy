@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { computeCountUpValue } from '@/lib/utils/countUp';
+import { formatCurrency } from '@/lib/utils/currency';
 
 const DURATION_MS = 600;
 
-export function CountUpStat({ value, prefix = '$' }: { value: number; prefix?: string }) {
+export function CountUpStat({ value }: { value: number }) {
   const [display, setDisplay] = useState(0);
   const startRef = useRef<number | null>(null);
 
@@ -33,8 +34,7 @@ export function CountUpStat({ value, prefix = '$' }: { value: number; prefix?: s
 
   return (
     <p className="font-heading text-3xl font-semibold text-foreground">
-      {prefix}
-      {display.toFixed(2)}
+      {formatCurrency(display)}
     </p>
   );
 }

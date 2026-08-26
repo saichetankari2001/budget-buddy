@@ -2,6 +2,7 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { CategoryTotal } from '@/lib/utils/expenseAggregation';
+import { formatCurrency } from '@/lib/utils/currency';
 
 export function CategoryPieChart({ data }: { data: CategoryTotal[] }) {
   if (data.length === 0) {
@@ -18,7 +19,7 @@ export function CategoryPieChart({ data }: { data: CategoryTotal[] }) {
             ))}
           </Pie>
           <Tooltip
-            formatter={(value: number) => `$${value.toFixed(2)}`}
+            formatter={(value: number) => formatCurrency(value)}
             contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E0E7FF', borderRadius: '0.75rem' }}
           />
         </PieChart>

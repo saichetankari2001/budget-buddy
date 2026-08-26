@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { CreateExpenseInput } from '@/lib/validation/expense.schema';
+import { formatCurrency } from '@/lib/utils/currency';
 
 interface Expense {
   id: string;
@@ -232,7 +233,7 @@ export function ExpensesClient({
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-medium text-foreground">${expense.amount.toFixed(2)}</span>
+                  <span className="font-medium text-foreground">{formatCurrency(expense.amount)}</span>
                   <IconButton icon={PencilIcon} label="Edit" onClick={() => setEditingId(expense.id)} />
                   <IconButton
                     icon={TrashIcon}
