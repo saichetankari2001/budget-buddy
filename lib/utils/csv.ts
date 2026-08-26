@@ -35,7 +35,12 @@ export function parseAndValidateCsvRows(csvText: string): ParseResult {
     const categoryName = (row.category ?? '').trim();
     const amountRaw = (row.amount ?? '').trim();
 
-    if (!DATE_FORMAT_REGEX.test(date) || Number.isNaN(Date.parse(date))) {
+    const isValidDate =
+      DATE_FORMAT_REGEX.test(date) &&
+      !Number.isNaN(Date.parse(date)) &&
+      new Date(date).toISOString().slice(0, 10) === date;
+
+    if (!isValidDate) {
       skipped.push({ row: rowNumber, reason: `date "${date}" is not a valid YYYY-MM-DD date` });
       return;
     }

@@ -46,4 +46,24 @@ describe('POST /api/expenses/import', () => {
     expect(body).toEqual({ imported: 2, skipped: [] });
     expect(importExpensesFromCsv).toHaveBeenCalledWith('user_1', csvContent);
   });
+
+  it('returns 400 with a message mentioning the row limit when the file has too many rows', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+
+    const header = 'date,description,category,amount';
+    const dataLines = Array.from(
+      { length: 5001 },
+      (_, i) => `2026-08-01,Item ${i},Food,1.00`
+    );
+    const csvContent = [header, ...dataLines].join('\n');
+
+    const formData = new FormData();
+    formData.append('file', new File([csvContent], 'expenses.csv', { type: 'text/csv' }));
+    const req = new NextRequest('http://localhost/api/expenses/import', { method: 'POST', body: formData });
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toMatch(/row limit|too many rows/i);
+  });
 });

@@ -4,6 +4,8 @@ import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { importExpensesFromCsv } from '@/lib/importExpensesFromCsv';
 
+const MAX_IMPORT_ROWS = 5000;
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -18,6 +20,12 @@ export async function POST(request: NextRequest) {
     }
 
     const csvText = await file.text();
+
+    const rowCount = csvText.trim().split('\n').length - 1; // minus the header line
+    if (rowCount > MAX_IMPORT_ROWS) {
+      throw new AppError(400, `File has too many rows (max ${MAX_IMPORT_ROWS})`);
+    }
+
     const result = await importExpensesFromCsv(user.userId, csvText);
 
     return NextResponse.json(result, { status: 200 });

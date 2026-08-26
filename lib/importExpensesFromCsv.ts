@@ -14,6 +14,11 @@ export async function importExpensesFromCsv(
   const categoryByLowerName = new Map(existingCategories.map((c) => [c.name.toLowerCase(), c]));
   let paletteIndex = existingCategories.length;
 
+  // Known limitation: this loop is not wrapped in a transaction. If a database
+  // error occurs partway through (e.g. row 500 of 1000), the rows already
+  // processed remain committed with no rollback, and the caller only sees a
+  // thrown error with no summary. A full transactional rewrite (prisma.$transaction)
+  // is a reasonable fast-follow but is not required at this project's scale.
   let imported = 0;
   for (const row of valid) {
     const key = row.categoryName.toLowerCase();

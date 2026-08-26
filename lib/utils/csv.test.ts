@@ -91,4 +91,24 @@ describe('parseAndValidateCsvRows', () => {
     expect(result.valid).toEqual([]);
     expect(result.skipped).toEqual([]);
   });
+
+  it('rejects a calendar date that does not exist, like February 30th', () => {
+    const csv = 'date,description,category,amount\n2026-02-30,Groceries,Food,42.50';
+    const result = parseAndValidateCsvRows(csv);
+    expect(result.valid).toEqual([]);
+    expect(result.skipped).toEqual([
+      { row: 1, reason: 'date "2026-02-30" is not a valid YYYY-MM-DD date' },
+    ]);
+  });
+
+  it('correctly parses a quoted field containing an embedded newline (round-trip with the exporter)', () => {
+    const exported = serializeExpensesToCsv([
+      { date: '2026-08-01', description: 'Rent\nJuly installment', categoryName: 'Housing', amount: 500 },
+    ]);
+    const result = parseAndValidateCsvRows(exported);
+    expect(result.valid).toEqual([
+      { date: '2026-08-01', description: 'Rent\nJuly installment', categoryName: 'Housing', amount: 500 },
+    ]);
+    expect(result.skipped).toEqual([]);
+  });
 });
