@@ -6,3 +6,9 @@ export const createCategorySchema = z.object({
 });
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
+
+export const updateCategorySchema = z.object({
+  isGstFree: z.boolean(),
+});
+
+export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
