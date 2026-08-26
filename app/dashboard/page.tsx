@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { CountUpStat } from '@/components/ui/CountUpStat';
 import { BudgetProgress } from '@/components/ui/BudgetProgress';
 import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses';
+import { computeGstPaid } from '@/lib/utils/gst';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -46,6 +47,9 @@ export default async function DashboardPage() {
   const categoryTotals = aggregateByCategory(currentMonthExpenses);
   const monthlyTotals = aggregateByMonth(expensesForAggregation, 6);
   const totalThisMonth = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const gstPaidThisMonth = computeGstPaid(
+    currentMonthExpenses.map((e) => ({ amount: e.amount, categoryIsGstFree: e.category.isGstFree }))
+  );
 
   const budgets = await prisma.budget.findMany({
     where: { userId: user.userId },
@@ -65,10 +69,16 @@ export default async function DashboardPage() {
       <main className="mx-auto max-w-4xl px-4 py-8">
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Dashboard</h1>
 
-        <Card className="mb-8">
-          <p className="text-sm text-muted">Total spent this month</p>
-          <CountUpStat value={totalThisMonth} />
-        </Card>
+        <div className="mb-8 grid gap-6 sm:grid-cols-2">
+          <Card>
+            <p className="text-sm text-muted">Total spent this month</p>
+            <CountUpStat value={totalThisMonth} />
+          </Card>
+          <Card>
+            <p className="text-sm text-muted">GST paid this month</p>
+            <CountUpStat value={gstPaidThisMonth} />
+          </Card>
+        </div>
 
         <div className="mb-6 grid gap-6 sm:grid-cols-2">
           <Card hoverable>
