@@ -8,6 +8,7 @@ export interface BudgetRow {
   categoryName: string;
   color: string;
   monthlyLimit: number | null;
+  isGstFree: boolean;
 }
 
 export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
@@ -42,6 +43,20 @@ export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
     setInputs((prev) => ({ ...prev, [categoryId]: '' }));
   }
 
+  async function handleToggleGstFree(categoryId: string, isGstFree: boolean) {
+    setRows((prev) => prev.map((r) => (r.categoryId === categoryId ? { ...r, isGstFree } : r)));
+    const res = await fetch(`/api/categories/${categoryId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isGstFree }),
+    });
+    if (!res.ok) {
+      setRows((prev) => prev.map((r) => (r.categoryId === categoryId ? { ...r, isGstFree: !isGstFree } : r)));
+      const body = await res.json().catch(() => ({}));
+      alert(body.error ?? 'Failed to update category');
+    }
+  }
+
   return (
     <ul className="flex flex-col gap-4">
       {rows.map((row) => (
@@ -50,7 +65,16 @@ export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
             <span className="font-medium text-foreground">{row.categoryName}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1 text-sm text-muted">
+              <input
+                type="checkbox"
+                checked={row.isGstFree}
+                onChange={(e) => handleToggleGstFree(row.categoryId, e.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              />
+              GST-free
+            </label>
             <input
               type="number"
               step="0.01"

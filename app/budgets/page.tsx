@@ -18,6 +18,7 @@ export default async function BudgetsPage() {
     categoryName: category.name,
     color: category.color,
     monthlyLimit: budgetByCategory.get(category.id) ?? null,
+    isGstFree: category.isGstFree,
   }));
 
   return (
