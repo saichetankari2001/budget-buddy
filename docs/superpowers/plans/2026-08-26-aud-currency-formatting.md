@@ -301,6 +301,19 @@ curl -s -b /tmp/currency-verify-cookies.txt http://localhost:3000/dashboard -o /
 grep -o '\$1,234.50' /tmp/currency-dashboard.html && echo "PASS: dashboard total shows thousands separator"
 grep -o '\$1,134.50 over budget' /tmp/currency-dashboard.html && echo "PASS: over-budget amount is correctly formatted"
 
+# POST-SHIP CORRECTION (discovered during the later GST-tracking phase's final review):
+# the "dashboard total" grep above targets CountUpStat's output, but CountUpStat is a
+# client component that starts at `useState(0)` and only reaches its real value via a
+# client-side requestAnimationFrame animation — curl fetches pre-animation SSR HTML, so
+# that specific grep can never actually match `$1,234.50` and silently prints nothing
+# (no error, since this script has no `set -e`). This does NOT mean the feature was
+# broken: formatCurrency has its own unit tests, and a retroactive live check via a real
+# browser (Playwright) confirmed the dashboard genuinely renders "$1,399.50" correctly
+# with the thousands separator once the animation completes. The over-budget grep above
+# is unaffected — BudgetProgress is a plain server-rendered component with no animation.
+# Lesson for future plans: verify any CountUpStat-rendered value with a real browser
+# (e.g. Playwright), never with curl+grep against raw SSR HTML.
+
 rm -f /tmp/currency-verify-cookies.txt /tmp/currency-expenses.html /tmp/currency-dashboard.html
 kill %1
 ```
