@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({ id: user.id, email: user.email }, { status: 201 });
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: request.headers.get('x-forwarded-proto') === 'https',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
