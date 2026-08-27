@@ -30,7 +30,7 @@ export function Header() {
               key={link.href}
               href={link.href}
               className={`text-sm font-medium ${
-                pathname === link.href ? 'text-primary' : 'text-muted hover:text-foreground'
+                pathname === link.href ? 'text-primary-hover' : 'text-muted hover:text-foreground'
               }`}
             >
               {link.label}
