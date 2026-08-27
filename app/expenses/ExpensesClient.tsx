@@ -195,6 +195,12 @@ export function ExpensesClient({
         </Card>
       )}
 
+      {expenses.length === 0 && (
+        <Card>
+          <p className="text-sm text-muted">No expenses match these filters.</p>
+        </Card>
+      )}
+
       <ul className="flex flex-col gap-2">
         {expenses.map((expense, index) =>
           editingId === expense.id ? (
@@ -246,7 +252,6 @@ export function ExpensesClient({
             </li>
           )
         )}
-        {expenses.length === 0 && <p className="text-sm text-muted">No expenses match these filters.</p>}
       </ul>
     </div>
   );
