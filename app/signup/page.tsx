@@ -66,6 +66,13 @@ export default function SignupPage() {
             Log in
           </a>
         </p>
+        <p className="mt-2 text-sm text-muted">
+          By creating an account, you agree to our{' '}
+          <a href="/privacy" className="text-primary-hover underline">
+            Privacy Policy
+          </a>
+          .
+        </p>
       </Card>
     </main>
   );
