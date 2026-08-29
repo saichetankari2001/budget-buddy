@@ -51,3 +51,9 @@ test('budgets page has no WCAG 2.1 A/AA violations', async ({ page }) => {
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
   expect(results.violations).toEqual([]);
 });
+
+test('privacy page has no WCAG 2.1 A/AA violations', async ({ page }) => {
+  await page.goto('/privacy');
+  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+});
