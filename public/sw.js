@@ -13,8 +13,8 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -30,21 +30,28 @@ self.addEventListener('fetch', (event) => {
 
   // Page navigations: network-first, falling back to the cached offline page only if the network fails.
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
+    event.respondWith(
+      fetch(request).catch(() => caches.open(CACHE_NAME).then((cache) => cache.match(OFFLINE_URL)))
+    );
     return;
   }
 
   // Next.js's content-hashed static build output: cache-first, since a new deploy means new filenames.
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
-          return response;
-        });
-      })
+      caches.open(CACHE_NAME).then((cache) =>
+        cache.match(request).then((cached) => {
+          if (cached) return cached;
+          return fetch(request).then((response) => {
+            // Only cache successful responses — caching a 404/500 would serve that error forever.
+            if (response.ok) {
+              const responseClone = response.clone();
+              event.waitUntil(cache.put(request, responseClone));
+            }
+            return response;
+          });
+        })
+      )
     );
     return;
   }
