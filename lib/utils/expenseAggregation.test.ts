@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { aggregateByCategory, aggregateByMonth, ExpenseWithCategory } from './expenseAggregation';
 
 const food = { id: 'cat_food', name: 'Food', color: '#f97316' };
@@ -28,6 +28,15 @@ describe('aggregateByCategory', () => {
 });
 
 describe('aggregateByMonth', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 15)); // August 15, 2026 — fixed "today" so the rolling window is deterministic regardless of when this test actually runs
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('sums amounts per month, oldest first, for the requested window', () => {
     const result = aggregateByMonth(expenses, 2);
     expect(result).toEqual([
