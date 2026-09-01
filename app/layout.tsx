@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Lexend, Source_Sans_3 } from 'next/font/google';
 import { Footer } from '@/components/ui/Footer';
+import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 import './globals.css';
 
 const lexend = Lexend({ subsets: ['latin'], variable: '--font-heading', display: 'swap' });
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${lexend.variable} ${sourceSans.variable}`}>
       <body className="flex min-h-screen flex-col bg-background font-sans text-foreground">
+        <ServiceWorkerRegistration />
         <div className="flex-1">{children}</div>
         <Footer />
       </body>
