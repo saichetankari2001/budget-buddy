@@ -15,7 +15,7 @@ describe('ExpenseForm', () => {
     fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '25.50' } });
     fireEvent.change(screen.getByLabelText(/description/i), { target: { value: 'Lunch' } });
     fireEvent.change(screen.getByLabelText(/category/i), { target: { value: 'cat_2' } });
-    fireEvent.change(screen.getByLabelText(/date/i), { target: { value: '2026-08-10' } });
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-08-10' } });
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { DateField } from '@/components/ui/DateField';
 
 export function ExpenseFilters({ categories }: { categories: { id: string; name: string }[] }) {
   const router = useRouter();
@@ -31,18 +32,16 @@ export function ExpenseFilters({ categories }: { categories: { id: string; name:
           </option>
         ))}
       </select>
-      <input
-        type="date"
-        aria-label="From date"
+      <DateField
+        ariaLabel="From date"
         value={searchParams.get('from') ?? ''}
-        onChange={(e) => updateFilter('from', e.target.value ? new Date(e.target.value).toISOString() : '')}
+        onChange={(value) => updateFilter('from', value ? new Date(value).toISOString() : '')}
         className="rounded-xl border border-border px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-primary"
       />
-      <input
-        type="date"
-        aria-label="To date"
+      <DateField
+        ariaLabel="To date"
         value={searchParams.get('to') ?? ''}
-        onChange={(e) => updateFilter('to', e.target.value ? new Date(e.target.value).toISOString() : '')}
+        onChange={(value) => updateFilter('to', value ? new Date(value).toISOString() : '')}
         className="rounded-xl border border-border px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-primary"
       />
     </div>

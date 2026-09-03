@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react';
 import type { RecurrenceInterval } from '@prisma/client';
 import { CreateExpenseInput } from '@/lib/validation/expense.schema';
 import { Button } from '@/components/ui/Button';
+import { DateField } from '@/components/ui/DateField';
 
 interface ExpenseFormProps {
   categories: { id: string; name: string }[];
@@ -82,12 +83,12 @@ export function ExpenseForm({ categories, initialValues, onSubmit }: ExpenseForm
       </label>
       <label className="flex flex-col text-sm text-foreground">
         Date
-        <input
-          type="date"
+        <DateField
+          ariaLabel="Date"
           required
           value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className={inputClasses}
+          onChange={setDate}
+          className={`${inputClasses} w-full`}
         />
       </label>
       <label className="flex items-center gap-2 text-sm text-foreground">
