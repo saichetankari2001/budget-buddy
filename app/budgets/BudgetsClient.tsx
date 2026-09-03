@@ -82,7 +82,7 @@ export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
               placeholder="No limit"
               value={inputs[row.categoryId] ?? ''}
               onChange={(e) => setInputs((prev) => ({ ...prev, [row.categoryId]: e.target.value }))}
-              className="w-28 rounded-xl border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-28 rounded-xl border border-border px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <Button variant="secondary" onClick={() => handleSave(row.categoryId)}>
               Save

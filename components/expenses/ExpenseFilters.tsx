@@ -22,7 +22,7 @@ export function ExpenseFilters({ categories }: { categories: { id: string; name:
         aria-label="Filter by category"
         value={searchParams.get('categoryId') ?? ''}
         onChange={(e) => updateFilter('categoryId', e.target.value)}
-        className="rounded-xl border border-border px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
+        className="rounded-xl border border-border px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-primary"
       >
         <option value="">All categories</option>
         {categories.map((c) => (
@@ -36,14 +36,14 @@ export function ExpenseFilters({ categories }: { categories: { id: string; name:
         aria-label="From date"
         value={searchParams.get('from') ?? ''}
         onChange={(e) => updateFilter('from', e.target.value ? new Date(e.target.value).toISOString() : '')}
-        className="rounded-xl border border-border px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
+        className="rounded-xl border border-border px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-primary"
       />
       <input
         type="date"
         aria-label="To date"
         value={searchParams.get('to') ?? ''}
         onChange={(e) => updateFilter('to', e.target.value ? new Date(e.target.value).toISOString() : '')}
-        className="rounded-xl border border-border px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
+        className="rounded-xl border border-border px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-primary"
       />
     </div>
   );

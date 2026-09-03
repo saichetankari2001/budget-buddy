@@ -14,7 +14,7 @@ export function IconButton({ icon: Icon, label, onClick, variant = 'default' }: 
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium transition duration-150 ${colorClasses}`}
+      className={`flex min-h-11 items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition duration-150 ${colorClasses}`}
     >
       <Icon className="h-4 w-4" aria-hidden="true" />
       {label}
