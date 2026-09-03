@@ -8,7 +8,10 @@ test('signup, add an expense, and see it on the dashboard', async ({ page }) => 
   await page.getByPlaceholder('Password (8+ characters)').fill('long-enough-password');
   await page.getByRole('button', { name: /sign up/i }).click();
 
-  await expect(page).toHaveURL(/\/dashboard/);
+  // Extra headroom on this specific assertion: it's the one step in the suite most exposed to
+  // Neon free-tier cold-start latency (a real signup DB write + JWT issuance + redirect), which
+  // has occasionally exceeded the global 10s expect timeout in CI without indicating a real bug.
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
 
   await page.goto('/expenses');
   await page.getByRole('button', { name: /add expense/i }).click();
