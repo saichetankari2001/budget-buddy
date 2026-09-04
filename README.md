@@ -82,9 +82,15 @@ lib/                  Business logic — validation, auth, pure utility
                        wrappers for easy unit testing
 prisma/               Database schema and migrations
 e2e/                  Playwright end-to-end and accessibility tests
+docs/ARCHITECTURE.md  System diagrams + ADRs for the non-obvious decisions
 docs/superpowers/     Design specs and implementation plans for every
                        feature — the full "why", not just the "what"
 ```
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for request-flow,
+auth, data-model, and PWA-caching diagrams, plus short ADRs explaining
+*why* things are built this way (JWT over NextAuth, Decimal over Float,
+no cron job for recurring expenses, and more).
 
 ## Deployment
 
