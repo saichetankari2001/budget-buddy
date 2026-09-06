@@ -45,7 +45,7 @@ export function ExpenseForm({ categories, initialValues, onSubmit }: ExpenseForm
   }
 
   const inputClasses =
-    'rounded-xl border border-border px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-primary';
+    'rounded-xl border border-border bg-card px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-primary';
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
