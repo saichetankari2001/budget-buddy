@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
-import { Lexend, Source_Sans_3 } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import { Footer } from '@/components/ui/Footer';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 import './globals.css';
 
-const lexend = Lexend({ subsets: ['latin'], variable: '--font-heading', display: 'swap' });
-const sourceSans = Source_Sans_3({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
+const inter = Inter({ subsets: ['latin'], variable: '--font-heading', display: 'swap' });
+const interBody = Inter({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'Budget Buddy',
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${lexend.variable} ${sourceSans.variable}`}>
+    <html lang="en" className={`${inter.variable} ${interBody.variable} ${jetbrainsMono.variable}`}>
       <body className="flex min-h-screen flex-col bg-background font-sans text-foreground">
         <ServiceWorkerRegistration />
         <div className="flex-1">{children}</div>

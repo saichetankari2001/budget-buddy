@@ -5,18 +5,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: { DEFAULT: '#6366F1', hover: '#4F46E5' },
-        accent: '#059669',
-        background: '#F5F3FF',
-        card: '#FFFFFF',
-        foreground: '#1E1B4B',
-        muted: '#64748B',
-        border: '#E0E7FF',
-        destructive: '#DC2626',
+        primary: { DEFAULT: '#8b5cf6', hover: '#a78bfa' },
+        accent: '#22d3ee',
+        background: '#05050f',
+        card: 'rgba(255,255,255,0.06)',
+        foreground: '#e5e7ff',
+        muted: '#94a3b8',
+        border: 'rgba(139,92,246,0.35)',
+        destructive: '#f87171',
+        success: '#34d399',
       },
       fontFamily: {
         heading: ['var(--font-heading)', 'sans-serif'],
         sans: ['var(--font-body)', 'sans-serif'],
+        mono: ['var(--font-mono)', 'monospace'],
       },
       keyframes: {
         fadeSlideIn: {
