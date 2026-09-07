@@ -20,7 +20,13 @@ export function CategoryPieChart({ data }: { data: CategoryTotal[] }) {
           </Pie>
           <Tooltip
             formatter={(value: number) => formatCurrency(value)}
-            contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E0E7FF', borderRadius: '0.75rem' }}
+            contentStyle={{
+              backgroundColor: '#13111f',
+              borderColor: 'rgba(139,92,246,0.35)',
+              borderRadius: '0.75rem',
+            }}
+            itemStyle={{ color: '#e5e7ff' }}
+            labelStyle={{ color: '#e5e7ff' }}
           />
         </PieChart>
       </ResponsiveContainer>

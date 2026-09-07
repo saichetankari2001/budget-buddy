@@ -13,14 +13,20 @@ export function MonthlyTrendChart({ data }: { data: MonthlyTotal[] }) {
     <div data-testid="monthly-trend-chart">
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E0E7FF" />
-          <XAxis dataKey="month" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
-          <YAxis stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(139,92,246,0.35)" />
+          <XAxis dataKey="month" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+          <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} />
           <Tooltip
             formatter={(value: number) => formatCurrency(value)}
-            contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E0E7FF', borderRadius: '0.75rem' }}
+            contentStyle={{
+              backgroundColor: '#13111f',
+              borderColor: 'rgba(139,92,246,0.35)',
+              borderRadius: '0.75rem',
+            }}
+            itemStyle={{ color: '#e5e7ff' }}
+            labelStyle={{ color: '#e5e7ff' }}
           />
-          <Line type="monotone" dataKey="total" stroke="#6366F1" strokeWidth={2} dot />
+          <Line type="monotone" dataKey="total" stroke="#8b5cf6" strokeWidth={2} dot />
         </LineChart>
       </ResponsiveContainer>
     </div>
