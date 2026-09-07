@@ -179,11 +179,11 @@ export function ExpensesClient({
         </Button>
         <a
           href="/api/expenses/export"
-          className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition duration-200 hover:bg-background"
+          className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-foreground backdrop-blur-xl transition duration-200 hover:bg-white/10"
         >
           Export CSV
         </a>
-        <label className="cursor-pointer rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition duration-200 hover:bg-background">
+        <label className="cursor-pointer rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-foreground backdrop-blur-xl transition duration-200 hover:bg-white/10">
           Import CSV
           <input type="file" accept=".csv" className="hidden" onChange={handleImport} />
         </label>
@@ -235,11 +235,11 @@ export function ExpensesClient({
                     )}
                   </p>
                   <p className="text-muted">
-                    {expense.category.name} · {new Date(expense.date).toLocaleDateString()}
+                    {expense.category.name} · <span className="font-mono">{new Date(expense.date).toLocaleDateString()}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-medium text-foreground">{formatCurrency(expense.amount)}</span>
+                  <span className="font-mono font-medium text-foreground">{formatCurrency(expense.amount)}</span>
                   <IconButton icon={PencilIcon} label="Edit" onClick={() => setEditingId(expense.id)} />
                   <IconButton
                     icon={TrashIcon}
