@@ -22,7 +22,7 @@ export function BudgetProgress({ items }: { items: BudgetProgressItem[] }) {
           <li key={item.categoryId}>
             <div className="mb-1 flex items-center justify-between text-sm">
               <span className="font-medium text-foreground">{item.categoryName}</span>
-              <span className={overBudget ? 'font-medium text-destructive' : 'text-muted'}>
+              <span className={`font-mono ${overBudget ? 'font-medium text-destructive' : 'text-muted'}`}>
                 {formatCurrency(item.spent)} / {formatCurrency(item.limit)}
               </span>
             </div>
@@ -35,7 +35,7 @@ export function BudgetProgress({ items }: { items: BudgetProgressItem[] }) {
               />
             </div>
             {overBudget && (
-              <p className="mt-1 text-xs text-destructive">
+              <p className="mt-1 font-mono text-xs text-destructive">
                 {formatCurrency(item.spent - item.limit)} over budget
               </p>
             )}

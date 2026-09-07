@@ -21,7 +21,7 @@ export function Header() {
   }
 
   return (
-    <header className="border-b border-border bg-card">
+    <header className="border-b border-border bg-card backdrop-blur-xl">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
         <span className="font-heading text-lg font-semibold text-foreground">Budget Buddy</span>
         <nav className="flex items-center gap-6">

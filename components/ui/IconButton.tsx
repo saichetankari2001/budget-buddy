@@ -9,7 +9,7 @@ interface IconButtonProps {
 
 export function IconButton({ icon: Icon, label, onClick, variant = 'default' }: IconButtonProps) {
   const colorClasses =
-    variant === 'destructive' ? 'text-destructive hover:bg-red-50' : 'text-primary hover:bg-background';
+    variant === 'destructive' ? 'text-destructive hover:bg-white/5' : 'text-primary hover:bg-white/5';
 
   return (
     <button
