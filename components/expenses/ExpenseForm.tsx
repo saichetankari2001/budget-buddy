@@ -96,7 +96,7 @@ export function ExpenseForm({ categories, initialValues, onSubmit }: ExpenseForm
           type="checkbox"
           checked={isRecurring}
           onChange={(e) => setIsRecurring(e.target.checked)}
-          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+          className="h-4 w-4 rounded accent-primary focus:ring-primary"
         />
         Repeat
       </label>

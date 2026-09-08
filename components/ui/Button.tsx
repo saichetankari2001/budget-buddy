@@ -9,9 +9,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    'bg-gradient-to-r from-primary to-accent text-white hover:shadow-[0_0_20px_rgba(139,92,246,0.4)]',
+    'bg-gradient-to-r from-primary to-accent text-[#05050f] hover:shadow-[0_0_20px_rgba(139,92,246,0.4)]',
   secondary: 'bg-card text-foreground border border-border backdrop-blur-xl hover:bg-white/10',
-  destructive: 'bg-destructive text-white hover:shadow-[0_0_20px_rgba(248,113,113,0.4)]',
+  destructive: 'bg-destructive text-[#05050f] hover:shadow-[0_0_20px_rgba(248,113,113,0.4)]',
 };
 
 export function Button({ variant = 'primary', className = '', children, ...rest }: ButtonProps) {

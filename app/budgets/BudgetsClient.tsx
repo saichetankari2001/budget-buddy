@@ -71,7 +71,7 @@ export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
                 type="checkbox"
                 checked={row.isGstFree}
                 onChange={(e) => handleToggleGstFree(row.categoryId, e.target.checked)}
-                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                className="h-4 w-4 rounded accent-primary focus:ring-primary"
               />
               GST-free
             </label>
