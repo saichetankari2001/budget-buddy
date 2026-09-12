@@ -13,14 +13,26 @@ enum RecurrenceInterval {
   YEARLY
 }
 
+enum CycleStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum MessageKind {
+  PLAN
+  CHECK_IN
+}
+
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
-  passwordHash String
-  createdAt    DateTime   @default(now())
-  categories   Category[]
-  expenses     Expense[]
-  budgets      Budget[]
+  id                String            @id @default(cuid())
+  email             String            @unique
+  passwordHash      String
+  createdAt         DateTime          @default(now())
+  categories        Category[]
+  expenses          Expense[]
+  budgets           Budget[]
+  moneyCycles       MoneyCycle[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Category {
@@ -66,4 +78,39 @@ model Budget {
   createdAt    DateTime @default(now())
 
   @@unique([userId, categoryId])
+}
+
+model MoneyCycle {
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startingAmount Decimal        @db.Decimal(10, 2)
+  startDate      DateTime
+  endDate        DateTime
+  status         CycleStatus    @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  messages       CoachMessage[]
+
+  @@index([userId, status])
+}
+
+model CoachMessage {
+  id        String      @id @default(cuid())
+  cycleId   String
+  cycle     MoneyCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  kind      MessageKind
+  content   String
+  createdAt DateTime    @default(now())
+
+  @@index([cycleId, createdAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
 }
