@@ -82,6 +82,6 @@ describe('generateCheckInMessage', () => {
     vi.mocked(fetch).mockRejectedValue(new Error('timeout'));
 
     const result = await generateCheckInMessage(input);
-    expect(result.toLowerCase()).toContain('over');
+    expect(result).toContain('spending a bit faster than planned');
   });
 });
