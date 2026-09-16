@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth/session';
 import { createMoneyCycleSchema } from '@/lib/validation/moneyCycle.schema';
@@ -6,6 +7,8 @@ import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { generatePlanMessage } from '@/lib/ai/coach';
 import { computeDaysRemaining, computeCommittedSpend, computeSafeToSpend } from '@/lib/utils/moneyCycle';
+
+const ACTIVE_CYCLE_MESSAGE = 'You already have an active cycle. It will complete on its own at its end date.';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +23,7 @@ export async function POST(request: NextRequest) {
       where: { userId: user.userId, status: 'ACTIVE' },
     });
     if (existingActive) {
-      throw new AppError(400, 'You already have an active cycle. It will complete on its own at its end date.');
+      throw new AppError(400, ACTIVE_CYCLE_MESSAGE);
     }
 
     const startDate = new Date();
@@ -46,12 +49,24 @@ export async function POST(request: NextRequest) {
       safeToSpend,
     });
 
-    const cycle = await prisma.moneyCycle.create({
-      data: { userId: user.userId, startingAmount, startDate, endDate: parsedEndDate },
-    });
-    const message = await prisma.coachMessage.create({
-      data: { cycleId: cycle.id, kind: 'PLAN', content: planMessageText },
-    });
+    let result;
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        const createdCycle = await tx.moneyCycle.create({
+          data: { userId: user.userId, startingAmount, startDate, endDate: parsedEndDate },
+        });
+        const createdMessage = await tx.coachMessage.create({
+          data: { cycleId: createdCycle.id, kind: 'PLAN', content: planMessageText },
+        });
+        return { cycle: createdCycle, message: createdMessage };
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new AppError(400, ACTIVE_CYCLE_MESSAGE);
+      }
+      throw error;
+    }
+    const { cycle, message } = result;
 
     return NextResponse.json(
       {

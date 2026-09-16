@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { Prisma } from '@prisma/client';
 import '@/tests/mocks/prisma';
 import { prismaMock } from '@/tests/mocks/prisma';
 
@@ -18,6 +19,8 @@ describe('POST /api/cycles', () => {
     prismaMock.moneyCycle.findFirst.mockResolvedValue(null); // no active cycle
     prismaMock.expense.findMany.mockResolvedValue([]); // no recurring templates
     vi.mocked(generatePlanMessage).mockResolvedValue('Your plan is ready.');
+    prismaMock.$transaction.mockImplementation(((callback: (tx: typeof prismaMock) => unknown) =>
+      callback(prismaMock)) as never);
     prismaMock.moneyCycle.create.mockResolvedValue({
       id: 'cycle_1',
       userId: 'user_1',
@@ -85,5 +88,29 @@ describe('POST /api/cycles', () => {
     );
 
     expect(res.status).toBe(401);
+  });
+
+  it('rejects with 400 when a concurrent request wins the race on the DB unique constraint', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(null); // fast-path check sees no active cycle
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    vi.mocked(generatePlanMessage).mockResolvedValue('Your plan is ready.');
+    prismaMock.$transaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed on the fields: (`userId`)', {
+        code: 'P2002',
+        clientVersion: '5.19.1',
+      })
+    );
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cycles', {
+        method: 'POST',
+        body: JSON.stringify({ startingAmount: 500, endDate: '2026-09-20T00:00:00.000Z' }),
+      })
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('You already have an active cycle. It will complete on its own at its end date.');
   });
 });
