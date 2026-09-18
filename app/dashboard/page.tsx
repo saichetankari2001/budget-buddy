@@ -7,6 +7,7 @@ import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
 import { CountUpStat } from '@/components/ui/CountUpStat';
 import { BudgetProgress } from '@/components/ui/BudgetProgress';
+import { CoachCard } from '@/components/coach/CoachCard';
 import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses';
 import { computeGstPaid } from '@/lib/utils/gst';
 
@@ -97,6 +98,10 @@ export default async function DashboardPage() {
           <h2 className="mb-3 font-heading font-medium text-foreground">Budget progress</h2>
           <BudgetProgress items={budgetItems} />
         </Card>
+
+        <div className="mt-6">
+          <CoachCard />
+        </div>
       </main>
     </>
   );
