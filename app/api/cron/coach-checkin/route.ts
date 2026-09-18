@@ -18,12 +18,14 @@ export async function POST(request: NextRequest) {
     const activeCycles = await prisma.moneyCycle.findMany({ where: { status: 'ACTIVE' } });
 
     let processed = 0;
+    let completed = 0;
     let failed = 0;
 
     for (const cycle of activeCycles) {
       try {
         if (cycle.endDate.getTime() <= now.getTime()) {
           await prisma.moneyCycle.update({ where: { id: cycle.id }, data: { status: 'COMPLETED' } });
+          completed += 1;
           continue;
         }
 
@@ -85,7 +87,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, processed, failed });
+    return NextResponse.json({ ok: true, processed, completed, failed });
   } catch (error) {
     return handleRouteError(error);
   }

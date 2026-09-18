@@ -82,7 +82,7 @@ describe('POST /api/cron/coach-checkin', () => {
     ]);
     prismaMock.moneyCycle.update.mockResolvedValue({} as never);
 
-    await POST(
+    const res = await POST(
       new NextRequest('http://localhost/api/cron/coach-checkin', {
         method: 'POST',
         headers: { authorization: 'Bearer test-secret' },
@@ -94,6 +94,11 @@ describe('POST /api/cron/coach-checkin', () => {
       data: { status: 'COMPLETED' },
     });
     expect(generateCheckInMessage).not.toHaveBeenCalled();
+
+    const body = await res.json();
+    expect(body.completed).toBe(1);
+    expect(body.processed).toBe(0);
+    expect(body.failed).toBe(0);
   });
 
   it('isolates one cycle failing mid-processing so the other cycle in the batch still gets checked in', async () => {
