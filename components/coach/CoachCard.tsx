@@ -23,12 +23,19 @@ interface ActiveCycle {
 }
 
 export function CoachCard() {
-  const [cycle, setCycle] = useState<ActiveCycle | null | undefined>(undefined);
+  const [cycle, setCycle] = useState<ActiveCycle | null | undefined | 'error'>(undefined);
+  const [startError, setStartError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/cycles/active')
-      .then((res) => res.json())
-      .then(setCycle);
+      .then(async (res) => {
+        if (!res.ok) {
+          setCycle('error');
+          return;
+        }
+        setCycle(await res.json());
+      })
+      .catch(() => setCycle('error'));
   }, []);
 
   async function handleStart(data: { startingAmount: number; endDate: string }) {
@@ -38,12 +45,24 @@ export function CoachCard() {
       body: JSON.stringify({ startingAmount: data.startingAmount, endDate: new Date(data.endDate).toISOString() }),
     });
     if (res.ok) {
+      setStartError(null);
       setCycle(await res.json());
+      return;
     }
+    const body = await res.json();
+    setStartError(body.error ?? 'Something went wrong');
   }
 
   if (cycle === undefined) {
     return null; // loading — avoid a flash of the empty-state form before the fetch resolves
+  }
+
+  if (cycle === 'error') {
+    return (
+      <Card>
+        <p className="text-sm text-muted">Couldn&apos;t load your Money Coach right now. Try refreshing.</p>
+      </Card>
+    );
   }
 
   if (cycle === null) {
@@ -51,6 +70,7 @@ export function CoachCard() {
       <Card>
         <h2 className="mb-3 font-heading font-medium text-foreground">Money Coach</h2>
         <StartCycleForm onSubmit={handleStart} />
+        {startError && <p className="mt-2 text-sm text-destructive">{startError}</p>}
       </Card>
     );
   }
