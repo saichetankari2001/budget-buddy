@@ -49,7 +49,12 @@ export function CoachCard() {
       setCycle(await res.json());
       return;
     }
-    const body = await res.json();
+    let body: { error?: string } = {};
+    try {
+      body = await res.json();
+    } catch {
+      // non-JSON error body (e.g. a gateway timeout page) — fall back to a generic message
+    }
     setStartError(body.error ?? 'Something went wrong');
   }
 
