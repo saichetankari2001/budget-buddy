@@ -1,5 +1,5 @@
 // app/api/cron/coach-checkin/route.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import '@/tests/mocks/prisma';
 import { prismaMock } from '@/tests/mocks/prisma';
@@ -14,6 +14,12 @@ import { POST } from './route';
 describe('POST /api/cron/coach-checkin', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-15T00:00:00.000Z')); // safely between the fixtures' Sep 10 startDate and Sep 20 endDate
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('rejects requests without the correct secret', async () => {
