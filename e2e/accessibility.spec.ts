@@ -34,7 +34,7 @@ test('dashboard with an active money cycle has no WCAG 2.1 A/AA violations', asy
   await signUp(page, 'a11y-dashboard-cycle');
   await page.goto('/dashboard');
   await page.getByLabel(/how much do you have/i).fill('500');
-  await page.getByLabel('Until when').fill('2026-12-31');
+  await page.getByLabel('Until when', { exact: true }).fill('2026-12-31');
   await page.getByRole('button', { name: /^start$/i }).click();
   await page.waitForTimeout(1000); // allow the cycle creation + first AI/fallback message to render
 
