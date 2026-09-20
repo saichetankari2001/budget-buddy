@@ -1,7 +1,7 @@
 import { buildFallbackPlanMessage, buildFallbackCheckInMessage } from '@/lib/utils/moneyCycle';
 
 const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
 const TIMEOUT_MS = 5000;
 
 async function callGemini(prompt: string): Promise<string> {
