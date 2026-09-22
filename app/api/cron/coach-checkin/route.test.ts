@@ -23,6 +23,7 @@ describe('POST /api/cron/coach-checkin', () => {
   });
 
   it('rejects requests without the correct secret', async () => {
+    process.env.CRON_SECRET = 'test-secret';
     const res = await POST(
       new NextRequest('http://localhost/api/cron/coach-checkin', {
         method: 'POST',
@@ -179,6 +180,112 @@ describe('POST /api/cron/coach-checkin', () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('skips a cycle whose last check-in was recent (idempotency guard)', async () => {
+    process.env.CRON_SECRET = 'test-secret';
+    prismaMock.moneyCycle.findMany.mockResolvedValue([
+      {
+        id: 'cycle_recent',
+        userId: 'user_recent',
+        startingAmount: { toString: () => '500.00' } as never,
+        startDate: new Date('2026-09-10T00:00:00.000Z'),
+        endDate: new Date('2026-09-20T00:00:00.000Z'),
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      } as never,
+    ]);
+    // "now" is 2026-09-15T00:00:00.000Z; last message was 1 hour ago — well within the 20h guard.
+    prismaMock.coachMessage.findFirst.mockResolvedValue({
+      id: 'msg_recent',
+      cycleId: 'cycle_recent',
+      kind: 'CHECK_IN',
+      content: 'Checking in!',
+      createdAt: new Date('2026-09-14T23:00:00.000Z'),
+    } as never);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cron/coach-checkin', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-secret' },
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.processed).toBe(0);
+    expect(body.completed).toBe(0);
+    expect(body.failed).toBe(0);
+    expect(generateCheckInMessage).not.toHaveBeenCalled();
+    expect(prismaMock.coachMessage.create).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+  });
+
+  it('still processes a cycle whose last check-in was 25 hours ago', async () => {
+    process.env.CRON_SECRET = 'test-secret';
+    prismaMock.moneyCycle.findMany.mockResolvedValue([
+      {
+        id: 'cycle_stale',
+        userId: 'user_stale',
+        startingAmount: { toString: () => '500.00' } as never,
+        startDate: new Date('2026-09-10T00:00:00.000Z'),
+        endDate: new Date('2026-09-20T00:00:00.000Z'),
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      } as never,
+    ]);
+    // "now" is 2026-09-15T00:00:00.000Z; last message was 25 hours ago — outside the 20h guard.
+    prismaMock.coachMessage.findFirst.mockResolvedValue({
+      id: 'msg_stale',
+      cycleId: 'cycle_stale',
+      kind: 'CHECK_IN',
+      content: 'Checking in yesterday!',
+      createdAt: new Date('2026-09-13T23:00:00.000Z'),
+    } as never);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: { toString: () => '100.00' } } } as never);
+    vi.mocked(generateCheckInMessage).mockResolvedValue('Checking in!');
+    prismaMock.coachMessage.create.mockResolvedValue({
+      id: 'msg_new',
+      cycleId: 'cycle_stale',
+      kind: 'CHECK_IN',
+      content: 'Checking in!',
+      createdAt: new Date(),
+    } as never);
+    prismaMock.pushSubscription.findMany.mockResolvedValue([
+      { id: 'sub_stale', userId: 'user_stale', endpoint: 'https://push.example.com/c', p256dh: 'k1', auth: 'k2', createdAt: new Date() },
+    ]);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cron/coach-checkin', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-secret' },
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.processed).toBe(1);
+    expect(body.failed).toBe(0);
+    expect(prismaMock.coachMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cycleId: 'cycle_stale', kind: 'CHECK_IN' }) })
+    );
+    expect(sendPushNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects requests when CRON_SECRET is not configured instead of matching "Bearer undefined"', async () => {
+    const original = process.env.CRON_SECRET;
+    delete process.env.CRON_SECRET;
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cron/coach-checkin', {
+        method: 'POST',
+        headers: { authorization: 'Bearer undefined' },
+      })
+    );
+
+    expect(res.status).toBe(500);
+    process.env.CRON_SECRET = original;
   });
 
   it('isolates one push subscription failing so the cycle still notifies its other subscriptions', async () => {

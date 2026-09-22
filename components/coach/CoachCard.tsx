@@ -16,6 +16,9 @@ interface CoachMessage {
 interface ActiveCycle {
   id: string;
   startingAmount: number;
+  remainingAmount: number;
+  daysRemaining: number;
+  safeToSpend: number;
   startDate: string;
   endDate: string;
   status: string;
@@ -80,11 +83,6 @@ export function CoachCard() {
     );
   }
 
-  const daysRemaining = Math.max(
-    Math.round((new Date(cycle.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
-    0
-  );
-
   return (
     <Card>
       <div className="mb-4 flex items-center justify-between">
@@ -95,12 +93,16 @@ export function CoachCard() {
         <div>
           <p className="text-sm text-muted">Amount left</p>
           <p className="bg-gradient-to-r from-primary to-accent bg-clip-text font-mono text-2xl font-semibold text-transparent">
-            {formatCurrency(cycle.startingAmount)}
+            {formatCurrency(cycle.remainingAmount)}
           </p>
         </div>
         <div>
           <p className="text-sm text-muted">Days left</p>
-          <p className="font-mono text-2xl font-semibold text-foreground">{daysRemaining}</p>
+          <p className="font-mono text-2xl font-semibold text-foreground">{cycle.daysRemaining}</p>
+        </div>
+        <div>
+          <p className="text-sm text-muted">Daily budget</p>
+          <p className="font-mono text-2xl font-semibold text-foreground">{formatCurrency(cycle.safeToSpend)}</p>
         </div>
       </div>
       <ul className="flex flex-col gap-3">

@@ -9,8 +9,20 @@ import { computeDaysRemaining, computeCommittedSpend, computeSafeToSpend, comput
 
 export const maxDuration = 60;
 
+export async function GET(request: NextRequest) {
+  return handleCheckIn(request);
+}
+
 export async function POST(request: NextRequest) {
+  return handleCheckIn(request);
+}
+
+async function handleCheckIn(request: NextRequest) {
   try {
+    if (!process.env.CRON_SECRET) {
+      throw new AppError(500, 'CRON_SECRET is not configured');
+    }
+
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       throw new AppError(401, 'Not authorized');
@@ -29,6 +41,15 @@ export async function POST(request: NextRequest) {
           await prisma.moneyCycle.update({ where: { id: cycle.id }, data: { status: 'COMPLETED' } });
           completed += 1;
           continue;
+        }
+
+        const lastMessage = await prisma.coachMessage.findFirst({
+          where: { cycleId: cycle.id },
+          orderBy: { createdAt: 'desc' },
+        });
+        const TWENTY_HOURS_MS = 20 * 60 * 60 * 1000;
+        if (lastMessage && now.getTime() - lastMessage.createdAt.getTime() < TWENTY_HOURS_MS) {
+          continue; // already checked in recently — avoid duplicate messages/pushes on a retry or manual re-trigger
         }
 
         const startingAmount = Number(cycle.startingAmount);

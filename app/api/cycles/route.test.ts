@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
 import '@/tests/mocks/prisma';
@@ -14,6 +14,15 @@ import { POST } from './route';
 const mockUser = { userId: 'user_1', email: 'a@example.com' };
 
 describe('POST /api/cycles', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-15T00:00:00.000Z')); // safely before the fixtures' Sep 20 endDate, within the schema's 400-day bound
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('creates a cycle and its first PLAN message', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
     prismaMock.moneyCycle.findFirst.mockResolvedValue(null); // no active cycle
