@@ -57,6 +57,9 @@ describe('POST /api/cycles', () => {
     expect(res.status).toBe(201);
     const json = await res.json();
     expect(json.startingAmount).toBe(500);
+    expect(json.remainingAmount).toBe(500); // no recurring templates, so nothing committed yet
+    expect(json.daysRemaining).toBe(5); // Sep 15 (fake "now") -> Sep 20
+    expect(json.safeToSpend).toBe(100); // 500 / 5
     expect(json.messages[0].content).toBe('Your plan is ready.');
     expect(prismaMock.moneyCycle.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: 'user_1', startingAmount: 500 }) })

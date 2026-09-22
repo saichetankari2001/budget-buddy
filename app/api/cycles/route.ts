@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
     );
     const daysRemaining = computeDaysRemaining(parsedEndDate, startDate);
     const safeToSpend = computeSafeToSpend({ startingAmount, committedSpend, daysRemaining });
+    const remainingAmount = Math.max(startingAmount - committedSpend, 0);
 
     const planMessageText = await generatePlanMessage({
       startingAmount,
@@ -74,6 +75,9 @@ export async function POST(request: NextRequest) {
       {
         id: cycle.id,
         startingAmount: Number(cycle.startingAmount),
+        remainingAmount,
+        daysRemaining,
+        safeToSpend,
         startDate: cycle.startDate,
         endDate: cycle.endDate,
         status: cycle.status,
