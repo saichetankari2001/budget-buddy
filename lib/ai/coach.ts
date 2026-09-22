@@ -2,7 +2,7 @@ import { buildFallbackPlanMessage, buildFallbackCheckInMessage } from '@/lib/uti
 
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
-const TIMEOUT_MS = 10000;
+const TIMEOUT_MS = 9000;
 
 async function callGemini(prompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;

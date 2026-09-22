@@ -10,6 +10,8 @@ import { computeDaysRemaining, computeCommittedSpend, computeSafeToSpend } from 
 
 const ACTIVE_CYCLE_MESSAGE = 'You already have an active cycle. It will complete on its own at its end date.';
 
+export const maxDuration = 15;
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();

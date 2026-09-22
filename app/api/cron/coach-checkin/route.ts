@@ -7,6 +7,8 @@ import { generateCheckInMessage } from '@/lib/ai/coach';
 import { sendPushNotification } from '@/lib/push/send';
 import { computeDaysRemaining, computeCommittedSpend, computeSafeToSpend, computePacingStatus } from '@/lib/utils/moneyCycle';
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');

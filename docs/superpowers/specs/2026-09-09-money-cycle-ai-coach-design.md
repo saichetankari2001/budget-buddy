@@ -135,7 +135,7 @@ query scoped to `userId`, verified via `getCurrentUser()`.
 `lib/ai/coach.ts` exports two pure-ish functions:
 `generatePlanMessage(input): Promise<string>` and
 `generateCheckInMessage(input): Promise<string>`, each wrapping a
-Gemini API call with a hard timeout (5s) and a try/catch. On any
+Gemini API call with a hard timeout (9s) and a try/catch. On any
 failure — timeout, rate limit (Gemini's free tier is generous but not
 unlimited), malformed response — both fall back to a plain
 computed-numbers template string built from the same input the AI
