@@ -16,11 +16,14 @@ enum RecurrenceInterval {
 enum CycleStatus {
   ACTIVE
   COMPLETED
+  CANCELLED
 }
 
 enum MessageKind {
   PLAN
   CHECK_IN
+  USER
+  CHAT
 }
 
 model User {
