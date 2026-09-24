@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { PushSubscribe } from '@/components/pwa/PushSubscribe';
 import { StartCycleForm } from './StartCycleForm';
 import { formatCurrency } from '@/lib/utils/currency';
 
 interface CoachMessage {
   id: string;
-  kind: 'PLAN' | 'CHECK_IN';
+  kind: 'PLAN' | 'CHECK_IN' | 'USER' | 'CHAT';
   content: string;
   createdAt: string;
 }
@@ -61,6 +62,41 @@ export function CoachCard() {
     setStartError(body.error ?? 'Something went wrong');
   }
 
+  const [chatInput, setChatInput] = useState('');
+  const [sendingChat, setSendingChat] = useState(false);
+
+  async function handleSendChat(e: FormEvent) {
+    e.preventDefault();
+    if (!chatInput.trim() || cycle === undefined || cycle === null || cycle === 'error') return;
+
+    const messageText = chatInput;
+    setChatInput('');
+    setSendingChat(true);
+
+    const optimisticUserMessage: CoachMessage = {
+      id: `optimistic-${Date.now()}`,
+      kind: 'USER',
+      content: messageText,
+      createdAt: new Date().toISOString(),
+    };
+    setCycle({ ...cycle, messages: [...cycle.messages, optimisticUserMessage] });
+
+    const res = await fetch('/api/cycles/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: messageText }),
+    });
+
+    if (res.ok) {
+      const refreshed = await fetch('/api/cycles/active');
+      if (refreshed.ok) {
+        setCycle(await refreshed.json());
+      }
+    }
+
+    setSendingChat(false);
+  }
+
   if (cycle === undefined) {
     return null; // loading — avoid a flash of the empty-state form before the fetch resolves
   }
@@ -109,15 +145,37 @@ export function CoachCard() {
         {cycle.messages.map((message) => (
           <li
             key={message.id}
-            className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground backdrop-blur-xl"
+            className={`rounded-xl border px-4 py-3 text-sm text-foreground backdrop-blur-xl ${
+              message.kind === 'USER' ? 'ml-8 border-primary bg-card' : 'border-border bg-card'
+            }`}
           >
             <p>{message.content}</p>
             <p className="mt-1 font-mono text-xs text-muted">
-              {message.kind === 'PLAN' ? 'Plan' : 'Check-in'} · {new Date(message.createdAt).toLocaleDateString()}
+              {message.kind === 'PLAN'
+                ? 'Plan'
+                : message.kind === 'CHECK_IN'
+                  ? 'Check-in'
+                  : message.kind === 'USER'
+                    ? 'You'
+                    : 'Coach'}{' '}
+              · {new Date(message.createdAt).toLocaleDateString()}
             </p>
           </li>
         ))}
       </ul>
+      <form onSubmit={handleSendChat} className="mt-3 flex gap-2">
+        <input
+          type="text"
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          placeholder="Tell the coach something — e.g. &quot;change it to $700&quot;"
+          disabled={sendingChat}
+          className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        <Button type="submit" disabled={sendingChat || !chatInput.trim()}>
+          {sendingChat ? 'Sending…' : 'Send'}
+        </Button>
+      </form>
     </Card>
   );
 }
