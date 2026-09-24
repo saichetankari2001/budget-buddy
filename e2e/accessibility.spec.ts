@@ -57,9 +57,55 @@ test('expenses page with the add-expense form open has no WCAG 2.1 A/AA violatio
   expect(results.violations).toEqual([]);
 });
 
+test('expenses page with a submitted expense shows its edit/delete icons and has no WCAG 2.1 A/AA violations', async ({
+  page,
+}) => {
+  await signUp(page, 'a11y-expenses-added');
+  // The newly-added row plays a 300ms fade-slide-in opacity animation
+  // (tailwind.config.ts's fadeSlideIn); scanning mid-animation would catch a
+  // transient, non-representative low-opacity contrast state. The component
+  // already declares `motion-reduce:animate-none` for exactly this case, so
+  // emulating the same reduced-motion preference here scans the real resting
+  // state instead of adding an arbitrary wait.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/expenses');
+  await page.getByRole('button', { name: /add expense/i }).click();
+  await page.getByLabel(/amount/i).fill('42.50');
+  await page.getByLabel(/description/i).fill('Groceries');
+  await page.getByRole('button', { name: /^save$/i }).click();
+
+  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
+
+  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test('budgets page has no WCAG 2.1 A/AA violations', async ({ page }) => {
   await signUp(page, 'a11y-budgets');
   await page.goto('/budgets');
+  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test('dashboard with a saved budget renders progress bars and has no WCAG 2.1 A/AA violations', async ({
+  page,
+}) => {
+  await signUp(page, 'a11y-budget-progress');
+  await page.goto('/budgets');
+
+  const firstRow = page.locator('li').first();
+  const categoryName = (await firstRow.locator('span.font-medium').first().innerText()).trim();
+  await firstRow.locator('input[type="number"]').fill('500');
+  await firstRow.getByRole('button', { name: 'Save' }).click();
+  // Confirms the save actually landed (Remove only renders once monthlyLimit !== null)
+  // before navigating away, so the dashboard load below is guaranteed to see a real budget.
+  await expect(firstRow.getByRole('button', { name: 'Remove' })).toBeVisible();
+
+  await page.goto('/dashboard');
+  const budgetCard = page.getByRole('heading', { name: 'Budget progress' }).locator('..');
+  await expect(budgetCard.getByText(categoryName, { exact: true })).toBeVisible();
+
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
   expect(results.violations).toEqual([]);
 });
