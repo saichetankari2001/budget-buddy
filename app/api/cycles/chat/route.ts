@@ -27,10 +27,12 @@ export async function POST(request: NextRequest) {
       throw new AppError(400, 'No active cycle to chat about');
     }
 
-    await prisma.coachMessage.create({ data: { cycleId: cycle.id, kind: 'USER', content: message } });
+    const userMessage = await prisma.coachMessage.create({
+      data: { cycleId: cycle.id, kind: 'USER', content: message },
+    });
 
     const priorMessages = await prisma.coachMessage.findMany({
-      where: { cycleId: cycle.id },
+      where: { cycleId: cycle.id, id: { not: userMessage.id } },
       orderBy: { createdAt: 'desc' },
       take: HISTORY_LIMIT,
     });
