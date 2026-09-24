@@ -64,13 +64,16 @@ export function CoachCard() {
 
   const [chatInput, setChatInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   async function handleSendChat(e: FormEvent) {
     e.preventDefault();
     if (!chatInput.trim() || cycle === undefined || cycle === null || cycle === 'error') return;
 
     const messageText = chatInput;
+    const previousCycle = cycle;
     setChatInput('');
+    setChatError(null);
     setSendingChat(true);
 
     const optimisticUserMessage: CoachMessage = {
@@ -79,22 +82,35 @@ export function CoachCard() {
       content: messageText,
       createdAt: new Date().toISOString(),
     };
-    setCycle({ ...cycle, messages: [...cycle.messages, optimisticUserMessage] });
+    // messages are ordered newest-first (server convention), so the new message goes at the front
+    setCycle({ ...previousCycle, messages: [optimisticUserMessage, ...previousCycle.messages] });
 
-    const res = await fetch('/api/cycles/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: messageText }),
-    });
+    try {
+      const res = await fetch('/api/cycles/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageText }),
+      });
 
-    if (res.ok) {
+      if (!res.ok) {
+        setCycle(previousCycle);
+        setChatError('Something went wrong sending that message. Try again.');
+        return;
+      }
+
       const refreshed = await fetch('/api/cycles/active');
       if (refreshed.ok) {
         setCycle(await refreshed.json());
+      } else {
+        setCycle(previousCycle);
+        setChatError('Something went wrong sending that message. Try again.');
       }
+    } catch {
+      setCycle(previousCycle);
+      setChatError('Something went wrong sending that message. Try again.');
+    } finally {
+      setSendingChat(false);
     }
-
-    setSendingChat(false);
   }
 
   if (cycle === undefined) {
@@ -176,6 +192,7 @@ export function CoachCard() {
           {sendingChat ? 'Sending…' : 'Send'}
         </Button>
       </form>
+      {chatError && <p className="mt-2 text-sm text-destructive">{chatError}</p>}
     </Card>
   );
 }
