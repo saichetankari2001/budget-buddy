@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
@@ -17,37 +17,55 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return outputArray;
 }
 
-export function PushSubscribe() {
-  const [status, setStatus] = useState<'idle' | 'subscribing' | 'subscribed' | 'denied' | 'unsupported'>('idle');
+type Status = 'idle' | 'subscribing' | 'subscribed' | 'denied' | 'unsupported' | 'error';
 
-  async function handleSubscribe() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+export function PushSubscribe() {
+  const [status, setStatus] = useState<Status>('idle');
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       setStatus('unsupported');
       return;
     }
-
-    setStatus('subscribing');
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
+    if (Notification.permission === 'granted') {
+      setStatus('subscribed');
+    } else if (Notification.permission === 'denied') {
       setStatus('denied');
-      return;
     }
+  }, []);
 
-    const registration = await navigator.serviceWorker.ready;
-    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '';
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-    });
+  async function handleSubscribe() {
+    setStatus('subscribing');
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setStatus('denied');
+        return;
+      }
 
-    const json = subscription.toJSON();
-    await fetch('/api/push/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
-    });
+      const registration = await navigator.serviceWorker.ready;
+      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '';
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
 
-    setStatus('subscribed');
+      const json = subscription.toJSON();
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
+      });
+
+      if (!res.ok) {
+        setStatus('error');
+        return;
+      }
+
+      setStatus('subscribed');
+    } catch {
+      setStatus('error');
+    }
   }
 
   if (status === 'subscribed') {
@@ -58,6 +76,16 @@ export function PushSubscribe() {
   }
   if (status === 'unsupported') {
     return null;
+  }
+  if (status === 'error') {
+    return (
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-destructive">Couldn&apos;t enable notifications.</p>
+        <Button variant="secondary" onClick={handleSubscribe}>
+          Try again
+        </Button>
+      </div>
+    );
   }
 
   return (

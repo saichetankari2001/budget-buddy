@@ -14,10 +14,9 @@ export async function POST(request: NextRequest) {
 
     const { endpoint, keys } = pushSubscriptionSchema.parse(await request.json());
 
-    await prisma.pushSubscription.upsert({
-      where: { endpoint },
-      create: { userId: user.userId, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-      update: { userId: user.userId, p256dh: keys.p256dh, auth: keys.auth },
+    await prisma.pushSubscription.deleteMany({ where: { endpoint } });
+    await prisma.pushSubscription.create({
+      data: { userId: user.userId, endpoint, p256dh: keys.p256dh, auth: keys.auth },
     });
 
     return NextResponse.json({ ok: true }, { status: 201 });

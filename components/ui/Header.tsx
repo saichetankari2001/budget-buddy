@@ -15,6 +15,23 @@ export function Header() {
   const router = useRouter();
 
   async function handleLogout() {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          await fetch('/api/push/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: subscription.endpoint }),
+          });
+        }
+      }
+    } catch {
+      // Best-effort — a failed unsubscribe shouldn't block logout. The stale
+      // subscription self-cleans the next time a push to it 410s or 404s.
+    }
+
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
     router.refresh();

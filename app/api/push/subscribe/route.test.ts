@@ -14,7 +14,8 @@ const mockUser = { userId: 'user_1', email: 'a@example.com' };
 describe('POST /api/push/subscribe', () => {
   it('saves a new push subscription for the current user', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
-    prismaMock.pushSubscription.upsert.mockResolvedValue({
+    prismaMock.pushSubscription.deleteMany.mockResolvedValue({ count: 0 });
+    prismaMock.pushSubscription.create.mockResolvedValue({
       id: 'sub_1',
       userId: 'user_1',
       endpoint: 'https://push.example.com/abc',
@@ -31,12 +32,17 @@ describe('POST /api/push/subscribe', () => {
     );
 
     expect(res.status).toBe(201);
-    expect(prismaMock.pushSubscription.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { endpoint: 'https://push.example.com/abc' },
-        create: expect.objectContaining({ userId: 'user_1', p256dh: 'key1', auth: 'key2' }),
-      })
-    );
+    expect(prismaMock.pushSubscription.deleteMany).toHaveBeenCalledWith({
+      where: { endpoint: 'https://push.example.com/abc' },
+    });
+    expect(prismaMock.pushSubscription.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user_1',
+        endpoint: 'https://push.example.com/abc',
+        p256dh: 'key1',
+        auth: 'key2',
+      }),
+    });
   });
 
   it('returns 401 when not authenticated', async () => {
