@@ -45,6 +45,7 @@ export async function generatePlanMessage(input: {
 }): Promise<string> {
   const prompt =
     `You are a friendly, concise personal-finance coach speaking directly to the user (use "you"). ` +
+    `All amounts are in Australian dollars (AUD). ` +
     `They have $${input.startingAmount.toFixed(2)} for the next ${input.daysRemaining} days. ` +
     `$${input.committedSpend.toFixed(2)} is already committed to recurring bills, leaving them ` +
     `$${input.safeToSpend.toFixed(2)} a day to spend freely. Write one short, encouraging message ` +
@@ -70,6 +71,7 @@ export async function generateCheckInMessage(input: {
       : 'they are on track — reassure them';
   const prompt =
     `You are a friendly, concise personal-finance coach speaking directly to the user (use "you"). ` +
+    `All amounts are in Australian dollars (AUD). ` +
     `They've spent $${input.spentSoFar.toFixed(2)} so far, with $${input.remainingAmount.toFixed(2)} left ` +
     `over ${input.daysRemaining} days (about $${input.safeToSpend.toFixed(2)}/day). Right now ${pacingHint}. ` +
     `Write one short daily check-in message (2-3 sentences). Do not use markdown formatting.`;

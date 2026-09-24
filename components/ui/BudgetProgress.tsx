@@ -26,7 +26,7 @@ export function BudgetProgress({ items }: { items: BudgetProgressItem[] }) {
                 {formatCurrency(item.spent)} / {formatCurrency(item.limit)}
               </span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-background">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${
                   overBudget ? 'bg-destructive' : 'bg-primary'

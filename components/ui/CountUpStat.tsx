@@ -33,7 +33,7 @@ export function CountUpStat({ value }: { value: number }) {
   }, [value]);
 
   return (
-    <p className="bg-gradient-to-r from-primary to-accent bg-clip-text font-mono text-3xl font-semibold text-transparent">
+    <p className="inline-block bg-gradient-to-r from-primary to-accent bg-clip-text font-mono text-3xl font-semibold text-transparent">
       {formatCurrency(display)}
     </p>
   );
