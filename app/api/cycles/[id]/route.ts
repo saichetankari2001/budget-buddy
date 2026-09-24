@@ -18,14 +18,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const result = await updateCycleAmount(user.userId, newAmount);
 
     if (!result.success) {
-      throw new AppError(404, result.error);
+      // A validation failure (bad amount) is a different situation from "no active cycle" —
+      // map it to 400 rather than the generic 404 used for the missing-cycle case.
+      throw new AppError(result.code === 'VALIDATION_ERROR' ? 400 : 404, result.error);
     }
 
     return NextResponse.json({
       remainingAmount: result.remainingAmount,
       daysRemaining: result.daysRemaining,
       safeToSpend: result.safeToSpend,
-      message: result.message,
     });
   } catch (error) {
     return handleRouteError(error);

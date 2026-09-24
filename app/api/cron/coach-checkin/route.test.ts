@@ -273,6 +273,70 @@ describe('POST /api/cron/coach-checkin', () => {
     expect(sendPushNotification).toHaveBeenCalledTimes(1);
   });
 
+  it('still checks in a cycle whose most recent message is a fresh USER/CHAT-kind chat turn (only PLAN/CHECK_IN count toward the cooldown)', async () => {
+    process.env.CRON_SECRET = 'test-secret';
+    prismaMock.moneyCycle.findMany.mockResolvedValue([
+      {
+        id: 'cycle_chat',
+        userId: 'user_chat',
+        startingAmount: { toString: () => '500.00' } as never,
+        startDate: new Date('2026-09-10T00:00:00.000Z'),
+        endDate: new Date('2026-09-20T00:00:00.000Z'),
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      } as never,
+    ]);
+    // The query itself is mocked to reflect the fixed `kind: { in: ['PLAN', 'CHECK_IN'] } }` filter:
+    // a USER/CHAT message from 5 minutes ago exists in the DB but must not satisfy this lookup,
+    // so it correctly resolves to null (no PLAN/CHECK_IN message exists yet for this cycle).
+    prismaMock.coachMessage.findFirst.mockImplementation(((args: { where: { kind?: { in?: string[] } } }) => {
+      if (args.where.kind?.in?.includes('PLAN') && args.where.kind?.in?.includes('CHECK_IN')) {
+        return Promise.resolve(null);
+      }
+      // A lookup without the kind filter (the pre-fix behavior) would have found the fresh chat message.
+      return Promise.resolve({
+        id: 'msg_chat',
+        cycleId: 'cycle_chat',
+        kind: 'CHAT',
+        content: 'Sure thing!',
+        createdAt: new Date('2026-09-14T23:55:00.000Z'), // 5 minutes before "now"
+      });
+    }) as never);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: { toString: () => '100.00' } } } as never);
+    vi.mocked(generateCheckInMessage).mockResolvedValue('Checking in!');
+    prismaMock.coachMessage.create.mockResolvedValue({
+      id: 'msg_checkin',
+      cycleId: 'cycle_chat',
+      kind: 'CHECK_IN',
+      content: 'Checking in!',
+      createdAt: new Date(),
+    } as never);
+    prismaMock.pushSubscription.findMany.mockResolvedValue([
+      { id: 'sub_chat', userId: 'user_chat', endpoint: 'https://push.example.com/chat', p256dh: 'k1', auth: 'k2', createdAt: new Date() },
+    ]);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cron/coach-checkin', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-secret' },
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.processed).toBe(1);
+    expect(body.failed).toBe(0);
+    expect(prismaMock.coachMessage.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ kind: { in: ['PLAN', 'CHECK_IN'] } }) })
+    );
+    expect(generateCheckInMessage).toHaveBeenCalled();
+    expect(prismaMock.coachMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cycleId: 'cycle_chat', kind: 'CHECK_IN' }) })
+    );
+    expect(sendPushNotification).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects requests when CRON_SECRET is not configured instead of matching "Bearer undefined"', async () => {
     const original = process.env.CRON_SECRET;
     delete process.env.CRON_SECRET;

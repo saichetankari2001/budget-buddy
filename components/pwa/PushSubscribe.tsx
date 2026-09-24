@@ -23,15 +23,42 @@ export function PushSubscribe() {
   const [status, setStatus] = useState<Status>('idle');
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      setStatus('unsupported');
-      return;
+    async function checkStatus() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        setStatus('unsupported');
+        return;
+      }
+      if (Notification.permission === 'denied') {
+        setStatus('denied');
+        return;
+      }
+      if (Notification.permission !== 'granted') {
+        return; // stays 'idle', shows the button — user hasn't decided yet
+      }
+
+      // Permission is 'granted', but that alone doesn't mean we're actually subscribed —
+      // a prior logout deletes the server-side row without revoking browser permission, so
+      // consult the real source of truth: the live browser subscription object.
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          // Re-confirm server-side (idempotent: subscribe route does deleteMany+create) —
+          // self-heals a case where the browser subscription outlived a server-side row loss.
+          const json = subscription.toJSON();
+          const res = await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
+          });
+          setStatus(res.ok ? 'subscribed' : 'idle');
+        }
+        // else: permission granted but no live browser subscription (e.g. post-logout) — stays 'idle', shows the button
+      } catch {
+        // best-effort; leave status as 'idle' so the button is still available
+      }
     }
-    if (Notification.permission === 'granted') {
-      setStatus('subscribed');
-    } else if (Notification.permission === 'denied') {
-      setStatus('denied');
-    }
+    checkStatus();
   }, []);
 
   async function handleSubscribe() {

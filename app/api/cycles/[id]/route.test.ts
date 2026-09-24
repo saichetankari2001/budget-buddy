@@ -22,7 +22,6 @@ describe('PATCH /api/cycles/[id]', () => {
       remainingAmount: 700,
       daysRemaining: 5,
       safeToSpend: 140,
-      message: 'Updated to $700.',
     });
 
     const res = await PATCH(
@@ -36,6 +35,9 @@ describe('PATCH /api/cycles/[id]', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.remainingAmount).toBe(700);
+    expect(json.daysRemaining).toBe(5);
+    expect(json.safeToSpend).toBe(140);
+    expect(json.message).toBeUndefined();
     expect(updateCycleAmount).toHaveBeenCalledWith('user_1', 700);
   });
 
@@ -52,6 +54,27 @@ describe('PATCH /api/cycles/[id]', () => {
     );
 
     expect(res.status).toBe(404);
+  });
+
+  it('returns 400 (not 404) when the amount fails validation', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    vi.mocked(updateCycleAmount).mockResolvedValue({
+      success: false,
+      error: 'Amount must be a positive number under $100,000,000',
+      code: 'VALIDATION_ERROR',
+    });
+
+    const res = await PATCH(
+      new NextRequest('http://localhost/api/cycles/cycle_1', {
+        method: 'PATCH',
+        body: JSON.stringify({ newAmount: 700 }),
+      }),
+      { params: { id: 'cycle_1' } }
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Amount must be a positive number under $100,000,000');
   });
 
   it('returns 401 when not authenticated', async () => {

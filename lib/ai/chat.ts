@@ -47,7 +47,17 @@ async function callGemini(contents: unknown[]): Promise<{ modelContent: unknown;
     const response = await fetch(GEMINI_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({ contents, tools: TOOLS }),
+      body: JSON.stringify({
+        contents,
+        tools: TOOLS,
+        systemInstruction: {
+          parts: [
+            {
+              text: 'You are a friendly, concise personal-finance coach speaking directly to the user (use "you"). All amounts are in Australian dollars (AUD). Do not use markdown formatting.',
+            },
+          ],
+        },
+      }),
       signal: controller.signal,
     });
 
@@ -87,12 +97,24 @@ export async function generateChatReply(
 
     const { name, args } = functionCallPart.functionCall;
     let toolResult: { success: boolean; error?: string; [key: string]: unknown };
-    if (name === 'update_cycle_amount') {
-      toolResult = await handlers.updateCycleAmount(args.newAmount as number);
-    } else if (name === 'cancel_cycle') {
-      toolResult = await handlers.cancelCycle();
-    } else {
-      toolResult = { success: false, error: `Unknown tool: ${name}` };
+    try {
+      if (name === 'update_cycle_amount') {
+        if (typeof args.newAmount !== 'number') {
+          toolResult = { success: false, error: 'newAmount must be a number' };
+        } else {
+          toolResult = await handlers.updateCycleAmount(args.newAmount);
+        }
+      } else if (name === 'cancel_cycle') {
+        toolResult = await handlers.cancelCycle();
+      } else {
+        toolResult = { success: false, error: `Unknown tool: ${name}` };
+      }
+    } catch (toolError) {
+      // The tool ran and failed (e.g. a DB error) — distinct from never reaching Gemini at all.
+      // Converting this into a normal {success:false} result lets it flow through the existing
+      // Gemini-relay path, where the model can explain the failure conversationally.
+      console.error(`Tool handler for "${name}" threw`, toolError);
+      toolResult = { success: false, error: 'That action failed — try again.' };
     }
 
     // NOTE: live-verified against the real Gemini API (gemini-3.6-flash) — the documented
@@ -106,7 +128,8 @@ export async function generateChatReply(
     ]);
 
     return second.text ?? FALLBACK_REPLY;
-  } catch {
+  } catch (error) {
+    console.error('generateChatReply failed', error);
     return FALLBACK_REPLY;
   }
 }

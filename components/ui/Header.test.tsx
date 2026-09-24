@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const pushMock = vi.fn();
@@ -16,6 +16,11 @@ describe('Header', () => {
     pushMock.mockClear();
     refreshMock.mockClear();
     global.fetch = vi.fn().mockResolvedValue({ ok: true });
+  });
+
+  afterEach(() => {
+    // @ts-expect-error test cleanup — not defined by default in jsdom
+    delete navigator.serviceWorker;
   });
 
   it('renders nav links and a logout button', () => {
@@ -36,5 +41,39 @@ describe('Header', () => {
     );
     expect(pushMock).toHaveBeenCalledWith('/login');
     expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it('unsubscribes the browser push subscription before calling the logout endpoint, when a subscription exists', async () => {
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        ready: Promise.resolve({
+          pushManager: {
+            getSubscription: vi.fn().mockResolvedValue({ endpoint: 'https://push.example.com/abc' }),
+          },
+        }),
+      },
+      configurable: true,
+    });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    global.fetch = fetchMock;
+
+    render(<Header />);
+
+    fireEvent.click(screen.getByRole('button', { name: /log out/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/push/unsubscribe',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ endpoint: 'https://push.example.com/abc' }),
+      })
+    );
+
+    const unsubscribeCallIndex = fetchMock.mock.calls.findIndex(([url]) => url === '/api/push/unsubscribe');
+    const logoutCallIndex = fetchMock.mock.calls.findIndex(([url]) => url === '/api/auth/logout');
+    expect(unsubscribeCallIndex).toBeGreaterThanOrEqual(0);
+    expect(unsubscribeCallIndex).toBeLessThan(logoutCallIndex);
   });
 });

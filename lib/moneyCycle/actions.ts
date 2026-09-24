@@ -1,8 +1,11 @@
 import { prisma } from '@/lib/prisma';
-import { generatePlanMessage } from '@/lib/ai/coach';
 import { computeDaysRemaining, computeCommittedSpend, computeSafeToSpend } from '@/lib/utils/moneyCycle';
 
-type ActionResult<T = object> = ({ success: true } & T) | { success: false; error: string };
+type ActionResult<T = object> =
+  | ({ success: true } & T)
+  | { success: false; error: string; code?: 'VALIDATION_ERROR' };
+
+const MAX_CYCLE_AMOUNT = 99_999_999;
 
 async function findActiveCycle(userId: string) {
   return prisma.moneyCycle.findFirst({ where: { userId, status: 'ACTIVE' } });
@@ -11,7 +14,15 @@ async function findActiveCycle(userId: string) {
 export async function updateCycleAmount(
   userId: string,
   newAmount: number
-): Promise<ActionResult<{ remainingAmount: number; daysRemaining: number; safeToSpend: number; message: string }>> {
+): Promise<ActionResult<{ remainingAmount: number; daysRemaining: number; safeToSpend: number }>> {
+  if (!Number.isFinite(newAmount) || newAmount <= 0 || newAmount > MAX_CYCLE_AMOUNT) {
+    return {
+      success: false,
+      error: 'Amount must be a positive number under $100,000,000',
+      code: 'VALIDATION_ERROR',
+    };
+  }
+
   const cycle = await findActiveCycle(userId);
   if (!cycle) {
     return { success: false, error: 'No active cycle found' };
@@ -29,22 +40,18 @@ export async function updateCycleAmount(
     cycle.endDate
   );
   const daysRemaining = computeDaysRemaining(cycle.endDate, now);
-  const remainingAmount = Math.max(newAmount - committedSpend, 0);
+
+  const spentAggregate = await prisma.expense.aggregate({
+    where: { userId, date: { gte: cycle.startDate, lte: now } },
+    _sum: { amount: true },
+  });
+  const spentSoFar = Number(spentAggregate._sum.amount ?? 0);
+  const remainingAmount = Math.max(newAmount - spentSoFar - committedSpend, 0);
   const safeToSpend = computeSafeToSpend({ startingAmount: remainingAmount, committedSpend: 0, daysRemaining });
 
-  const planMessageText = await generatePlanMessage({
-    startingAmount: newAmount,
-    committedSpend,
-    daysRemaining,
-    safeToSpend,
-  });
+  await prisma.moneyCycle.update({ where: { id: cycle.id }, data: { startingAmount: newAmount } });
 
-  await prisma.$transaction(async (tx) => {
-    await tx.moneyCycle.update({ where: { id: cycle.id }, data: { startingAmount: newAmount } });
-    await tx.coachMessage.create({ data: { cycleId: cycle.id, kind: 'PLAN', content: planMessageText } });
-  });
-
-  return { success: true, remainingAmount, daysRemaining, safeToSpend, message: planMessageText };
+  return { success: true, remainingAmount, daysRemaining, safeToSpend };
 }
 
 export async function cancelCycle(userId: string): Promise<ActionResult> {

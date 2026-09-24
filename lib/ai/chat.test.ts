@@ -123,4 +123,113 @@ describe('generateChatReply', () => {
 
     expect(result).toBe("Sorry, I couldn't catch that — try again in a moment.");
   });
+
+  it('logs the failure when the outer catch produces the fallback reply', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(fetch).mockRejectedValue(new Error('network error'));
+
+    const handlers = { updateCycleAmount: vi.fn(), cancelCycle: vi.fn() };
+    await generateChatReply('change it to 700', [], handlers);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('generateChatReply failed', expect.any(Error));
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('sends a systemInstruction with AUD/persona framing on every Gemini call', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { role: 'model', parts: [{ text: 'Sure, happy to help!' }] } }] }),
+    } as Response);
+
+    const handlers = { updateCycleAmount: vi.fn(), cancelCycle: vi.fn() };
+    await generateChatReply('hey there', [], handlers);
+
+    const requestBody = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
+    expect(requestBody.systemInstruction.parts[0].text).toContain('AUD');
+    expect(requestBody.systemInstruction.parts[0].text).toContain('Australian dollars');
+  });
+
+  it('relays a thrown error from a tool handler to Gemini as a {success:false} result, and logs it, instead of letting the exception propagate', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ functionCall: { name: 'update_cycle_amount', args: { newAmount: 700 } } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { role: 'model', parts: [{ text: 'That action failed — try again.' }] } }],
+        }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn().mockRejectedValue(new Error('unexpected db failure')),
+      cancelCycle: vi.fn(),
+    };
+
+    const result = await generateChatReply('change it to 700', [], handlers);
+
+    // The exception never propagates out of generateChatReply — it resolves to Gemini's
+    // second-turn reply, exactly like any other tool failure.
+    expect(result).toBe('That action failed — try again.');
+
+    const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
+    const functionResponsePart = secondCallBody.contents.find((c: { parts?: { functionResponse?: unknown }[] }) =>
+      c.parts?.some((p) => p.functionResponse)
+    );
+    expect(functionResponsePart.parts[0].functionResponse.response).toEqual({
+      success: false,
+      error: 'That action failed — try again.',
+    });
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('treats a non-numeric args.newAmount as a validation failure relayed to Gemini, without calling the handler', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ functionCall: { name: 'update_cycle_amount', args: { newAmount: 'seven hundred' } } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { role: 'model', parts: [{ text: "I couldn't tell what amount you meant." }] } }],
+        }),
+      } as Response);
+
+    const handlers = { updateCycleAmount: vi.fn(), cancelCycle: vi.fn() };
+    const result = await generateChatReply('change it to some amount', [], handlers);
+
+    expect(result).toBe("I couldn't tell what amount you meant.");
+    expect(handlers.updateCycleAmount).not.toHaveBeenCalled();
+
+    const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
+    const functionResponsePart = secondCallBody.contents.find((c: { parts?: { functionResponse?: unknown }[] }) =>
+      c.parts?.some((p) => p.functionResponse)
+    );
+    expect(functionResponsePart.parts[0].functionResponse.response).toEqual({
+      success: false,
+      error: 'newAmount must be a number',
+    });
+  });
 });

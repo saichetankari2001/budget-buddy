@@ -9,7 +9,7 @@ import { updateCycleAmount, cancelCycle } from '@/lib/moneyCycle/actions';
 
 const chatMessageSchema = z.object({ message: z.string().min(1).max(500) });
 
-export const maxDuration = 15;
+export const maxDuration = 20;
 
 const HISTORY_LIMIT = 10;
 

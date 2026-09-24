@@ -44,7 +44,7 @@ async function handleCheckIn(request: NextRequest) {
         }
 
         const lastMessage = await prisma.coachMessage.findFirst({
-          where: { cycleId: cycle.id },
+          where: { cycleId: cycle.id, kind: { in: ['PLAN', 'CHECK_IN'] } },
           orderBy: { createdAt: 'desc' },
         });
         const TWENTY_HOURS_MS = 20 * 60 * 60 * 1000;

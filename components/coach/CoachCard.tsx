@@ -144,7 +144,7 @@ export function CoachCard() {
       <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div>
           <p className="text-sm text-muted">Amount left</p>
-          <p className="bg-gradient-to-r from-primary to-accent bg-clip-text font-mono text-2xl font-semibold text-transparent">
+          <p className="inline-block bg-gradient-to-r from-primary to-accent bg-clip-text font-mono text-2xl font-semibold text-transparent">
             {formatCurrency(cycle.remainingAmount)}
           </p>
         </div>
@@ -185,6 +185,7 @@ export function CoachCard() {
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
           placeholder="Tell the coach something — e.g. &quot;change it to $700&quot;"
+          aria-label="Message your money coach"
           disabled={sendingChat}
           className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-primary"
         />
