@@ -120,4 +120,23 @@ describe('computeCashFlowProjection', () => {
     expect(result.isShortfall).toBe(true);
     expect(result.safeToSpendPerDay).toBe(0);
   });
+
+  it('does not mask an already-negative starting balance when a later, purely-positive income event exists', () => {
+    // Regression: the event-gated minimum tracker must not erase an existing shortfall just
+    // because some later event (with nothing negative in between) happens to be income. The
+    // account is $50 overdrawn TODAY — that must surface as a shortfall regardless of what
+    // happens three days from now.
+    const today = new Date('2026-09-24T00:00:00.000Z');
+    const endDate = new Date('2026-09-30T00:00:00.000Z');
+    const result = computeCashFlowProjection({
+      currentBalance: -50,
+      today,
+      endDate,
+      fixedIncomeOccurrences: [{ date: new Date('2026-09-27T00:00:00.000Z'), amount: 400, label: 'Job' }],
+      billOccurrences: [],
+    });
+
+    expect(result.isShortfall).toBe(true);
+    expect(result.safeToSpendPerDay).toBe(0);
+  });
 });

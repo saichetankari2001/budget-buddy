@@ -62,7 +62,14 @@ export function computeCashFlowProjection(input: {
   // actually fired, so a flat run-up before anything happens can't masquerade as the low point;
   // since the balance is constant between events, the true minimum always lands on (or right
   // after) an event day, so restricting candidates to "on/after the first event" loses nothing.
-  let minFutureBalance = Infinity;
+  //
+  // Exception: if the starting balance is ALREADY negative, that's a real shortfall today, not a
+  // benign flat prefix — it must seed the tracker so it isn't erased by a later, unrelated income
+  // event with nothing negative in between. Without this, an overdrawn user with income landing
+  // later (and no bills before it) would see `isShortfall: false`, because the negative starting
+  // point never became a tracked candidate. This also makes the "no events at all" fallback below
+  // consistent with the event-driven path instead of being the only place a negative start surfaces.
+  let minFutureBalance = input.currentBalance < 0 ? input.currentBalance : Infinity;
   let minFutureBalanceDate = today;
   let anyEventSoFar = false;
 

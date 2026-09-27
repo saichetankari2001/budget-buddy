@@ -31,7 +31,13 @@ export function computeBillOccurrences(
 ): { date: Date; amount: number; label: string }[] {
   return templates.flatMap((template) =>
     computeMissingOccurrences(template.recurrenceInterval, template.date, windowStart, windowEnd).map((date) => ({
-      date,
+      // computeMissingOccurrences constructs its dates in LOCAL time (local midnight on the
+      // intended calendar day). Re-anchor to the equivalent UTC-midnight instant for that same
+      // local calendar day here, at the boundary, so consumers that bucket by UTC calendar day
+      // (e.g. computeCashFlowProjection) see the occurrence land on the day it was actually meant
+      // for, regardless of the host's timezone offset. computeMissingOccurrences itself is left
+      // untouched — it's pre-existing and still relied on as-is by computeCommittedSpend.
+      date: new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())),
       amount: template.amount,
       label: template.label,
     }))

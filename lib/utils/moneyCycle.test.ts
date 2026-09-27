@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeDaysRemaining,
   computeCommittedSpend,
+  computeBillOccurrences,
   computeSafeToSpend,
   computePacingStatus,
   buildFallbackPlanMessage,
@@ -41,6 +42,54 @@ describe('computeCommittedSpend', () => {
     // Window Sep 10 -> Sep 16: one weekly occurrence (Sep 15) per template
     const result = computeCommittedSpend(templates, new Date('2026-09-10'), new Date('2026-09-16'));
     expect(result).toBe(80);
+  });
+});
+
+describe('computeBillOccurrences', () => {
+  it('anchors each occurrence to the UTC calendar day it was actually meant for, regardless of host timezone', () => {
+    // Regression: computeMissingOccurrences (unchanged) builds its occurrence dates in LOCAL
+    // time. computeBillOccurrences feeds computeCashFlowProjection, which buckets by UTC
+    // calendar day — so without re-anchoring at this boundary, a host running in a non-UTC
+    // timezone could silently shift a bill onto the wrong day. Using local-time constructors for
+    // the template/window (matching this file's and recurringOccurrences.test.ts's existing
+    // convention) keeps computeMissingOccurrences' own behavior timezone-neutral for this test;
+    // asserting via UTC getters on the *output* is what actually proves the re-anchoring works,
+    // independent of whatever timezone this suite happens to run in.
+    const templates = [
+      { amount: 100, recurrenceInterval: 'MONTHLY' as const, date: new Date(2026, 7, 15), label: 'Rent' }, // Aug 15
+    ];
+    const windowStart = new Date(2026, 8, 1); // Sep 1
+    const windowEnd = new Date(2026, 8, 30); // Sep 30
+
+    const result = computeBillOccurrences(templates, windowStart, windowEnd);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].date.getUTCFullYear()).toBe(2026);
+    expect(result[0].date.getUTCMonth()).toBe(8); // September (0-indexed)
+    expect(result[0].date.getUTCDate()).toBe(15);
+    expect(result[0].amount).toBe(100);
+    expect(result[0].label).toBe('Rent');
+  });
+
+  it('returns one dated occurrence per template match, across multiple templates', () => {
+    const templates = [
+      { amount: 50, recurrenceInterval: 'WEEKLY' as const, date: new Date(2026, 8, 8), label: 'Streaming' },
+      { amount: 30, recurrenceInterval: 'WEEKLY' as const, date: new Date(2026, 8, 8), label: 'Gym' },
+    ];
+    // Window Sep 10 -> Sep 16: one weekly occurrence (Sep 15) per template
+    const result = computeBillOccurrences(templates, new Date(2026, 8, 10), new Date(2026, 8, 16));
+
+    expect(result).toHaveLength(2);
+    expect(result.map((r) => r.label).sort()).toEqual(['Gym', 'Streaming']);
+    result.forEach((occurrence) => {
+      expect(occurrence.date.getUTCFullYear()).toBe(2026);
+      expect(occurrence.date.getUTCMonth()).toBe(8);
+      expect(occurrence.date.getUTCDate()).toBe(15);
+    });
+  });
+
+  it('returns an empty array for an empty template list', () => {
+    expect(computeBillOccurrences([], new Date(2026, 8, 10), new Date(2026, 8, 20))).toEqual([]);
   });
 });
 
