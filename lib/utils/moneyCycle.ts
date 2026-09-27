@@ -70,11 +70,13 @@ export function buildFallbackPlanMessage(input: {
   committedSpend: number;
   daysRemaining: number;
   safeToSpend: number;
+  shortfallWarning?: string;
 }): string {
+  const shortfallText = input.shortfallWarning ? ` Importantly: ${input.shortfallWarning}.` : '';
   return (
     `You've got ${formatCurrency(input.startingAmount)} for the next ${input.daysRemaining} days. ` +
     `${formatCurrency(input.committedSpend)} is already committed to recurring bills, leaving you ` +
-    `${formatCurrency(input.safeToSpend)} a day to spend freely.`
+    `${formatCurrency(input.safeToSpend)} a day to spend freely.${shortfallText}`
   );
 }
 
@@ -84,14 +86,16 @@ export function buildFallbackCheckInMessage(input: {
   daysRemaining: number;
   safeToSpend: number;
   pacingStatus: 'ON_TRACK' | 'OVER_PACE';
+  shortfallWarning?: string;
 }): string {
   const pacingText =
     input.pacingStatus === 'OVER_PACE'
       ? "you're spending a bit faster than planned"
       : "you're on track";
+  const shortfallText = input.shortfallWarning ? ` Importantly: ${input.shortfallWarning}.` : '';
   return (
     `You've spent ${formatCurrency(input.spentSoFar)} so far — ${pacingText}. ` +
     `${formatCurrency(input.remainingAmount)} left over ${input.daysRemaining} days, ` +
-    `about ${formatCurrency(input.safeToSpend)} a day.`
+    `about ${formatCurrency(input.safeToSpend)} a day.${shortfallText}`
   );
 }

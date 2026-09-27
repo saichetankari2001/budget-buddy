@@ -47,6 +47,41 @@ describe('generatePlanMessage', () => {
     const result = await generatePlanMessage(input);
     expect(result).toContain('$500.00');
   });
+
+  it('includes the shortfall warning in the prompt sent to Gemini when present', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+    } as Response);
+
+    await generatePlanMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
+
+    const [, options] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(options!.body as string);
+    const prompt = body.contents[0].parts[0].text;
+    expect(prompt).toContain("you're projected to be short before rent clears on the 30th");
+  });
+
+  it('omits any shortfall text from the prompt when shortfallWarning is not present', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+    } as Response);
+
+    await generatePlanMessage(input);
+
+    const [, options] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(options!.body as string);
+    const prompt = body.contents[0].parts[0].text;
+    expect(prompt).not.toContain('Importantly:');
+  });
+
+  it('appends the shortfall warning to the fallback message when the Gemini call fails', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('network error'));
+
+    const result = await generatePlanMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
+    expect(result).toContain("you're projected to be short before rent clears on the 30th");
+  });
 });
 
 describe('generateCheckInMessage', () => {
@@ -83,5 +118,40 @@ describe('generateCheckInMessage', () => {
 
     const result = await generateCheckInMessage(input);
     expect(result).toContain('spending a bit faster than planned');
+  });
+
+  it('includes the shortfall warning in the prompt sent to Gemini when present', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+    } as Response);
+
+    await generateCheckInMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
+
+    const [, options] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(options!.body as string);
+    const prompt = body.contents[0].parts[0].text;
+    expect(prompt).toContain("you're projected to be short before rent clears on the 30th");
+  });
+
+  it('omits any shortfall text from the prompt when shortfallWarning is not present', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+    } as Response);
+
+    await generateCheckInMessage(input);
+
+    const [, options] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(options!.body as string);
+    const prompt = body.contents[0].parts[0].text;
+    expect(prompt).not.toContain('Importantly:');
+  });
+
+  it('appends the shortfall warning to the fallback message when the Gemini call fails', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('network error'));
+
+    const result = await generateCheckInMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
+    expect(result).toContain("you're projected to be short before rent clears on the 30th");
   });
 });
