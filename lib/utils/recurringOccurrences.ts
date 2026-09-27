@@ -46,6 +46,10 @@ function advance(sourceDate: Date, fromDate: Date, interval: RecurrenceInterval)
   return next;
 }
 
+export function computeNextOccurrence(interval: RecurrenceInterval, sourceDate: Date, afterDate: Date): Date {
+  return advance(sourceDate, afterDate, interval);
+}
+
 export function computeMissingOccurrences(
   interval: RecurrenceInterval,
   sourceDate: Date,
