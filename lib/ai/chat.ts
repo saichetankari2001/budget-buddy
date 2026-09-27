@@ -18,6 +18,56 @@ const TOOLS = [
         description: "Cancel the user's active money cycle entirely",
         parameters: { type: 'object', properties: {} },
       },
+      {
+        name: 'add_income_source',
+        description: "Add a new income source for the user — a job, gig, or any recurring or irregular way they earn money",
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'A short name for this income source, e.g. "Casual job" or "Uber"' },
+            type: { type: 'string', enum: ['FIXED', 'IRREGULAR'], description: 'FIXED if the amount and schedule are predictable; IRREGULAR if the amount varies (e.g. gig work)' },
+            amount: { type: 'number', description: 'The amount per occurrence in AUD, only for FIXED sources' },
+            recurrenceInterval: { type: 'string', enum: ['WEEKLY', 'MONTHLY', 'YEARLY'], description: 'How often it recurs, only for FIXED sources' },
+            startDate: { type: 'string', description: 'ISO date string for when this income starts' },
+          },
+          required: ['name', 'type', 'startDate'],
+        },
+      },
+      {
+        name: 'log_income',
+        description: "Log an actual amount of money the user just received from an existing income source",
+        parameters: {
+          type: 'object',
+          properties: {
+            sourceName: { type: 'string', description: 'The name of the income source this money came from' },
+            amount: { type: 'number', description: 'The amount received, in AUD' },
+          },
+          required: ['sourceName', 'amount'],
+        },
+      },
+      {
+        name: 'add_bill',
+        description: "Add a new bill — a future obligation the user needs to pay on a specific date",
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'A short name for this bill, e.g. "Rent" or "Phone bill"' },
+            amount: { type: 'number', description: 'The amount owed, in AUD' },
+            dueDate: { type: 'string', description: 'ISO date string for when this bill is due' },
+            recurrenceInterval: { type: 'string', enum: ['WEEKLY', 'MONTHLY', 'YEARLY'], description: 'How often it recurs, omit for a one-time bill' },
+          },
+          required: ['name', 'amount', 'dueDate'],
+        },
+      },
+      {
+        name: 'mark_bill_paid',
+        description: "Mark a bill as paid, recording it as a real expense",
+        parameters: {
+          type: 'object',
+          properties: { billName: { type: 'string', description: 'The name of the bill that was paid' } },
+          required: ['billName'],
+        },
+      },
     ],
   },
 ];
@@ -30,6 +80,21 @@ export interface ChatHistoryMessage {
 export interface ChatToolHandlers {
   updateCycleAmount: (newAmount: number) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
   cancelCycle: () => Promise<{ success: boolean; error?: string }>;
+  addIncomeSource: (input: {
+    name: string;
+    type: 'FIXED' | 'IRREGULAR';
+    amount?: number;
+    recurrenceInterval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+    startDate: string;
+  }) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
+  logIncome: (input: { sourceName: string; amount: number }) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
+  addBill: (input: {
+    name: string;
+    amount: number;
+    dueDate: string;
+    recurrenceInterval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  }) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
+  markBillPaid: (billName: string) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
 }
 
 const FALLBACK_REPLY = "Sorry, I couldn't catch that — try again in a moment.";
@@ -106,6 +171,51 @@ export async function generateChatReply(
         }
       } else if (name === 'cancel_cycle') {
         toolResult = await handlers.cancelCycle();
+      } else if (name === 'add_income_source') {
+        if (typeof args.name !== 'string') {
+          toolResult = { success: false, error: 'name must be a string' };
+        } else if (args.type !== 'FIXED' && args.type !== 'IRREGULAR') {
+          toolResult = { success: false, error: 'type must be FIXED or IRREGULAR' };
+        } else if (typeof args.startDate !== 'string') {
+          toolResult = { success: false, error: 'startDate must be a string' };
+        } else {
+          toolResult = await handlers.addIncomeSource({
+            name: args.name,
+            type: args.type,
+            amount: typeof args.amount === 'number' ? args.amount : undefined,
+            recurrenceInterval: args.recurrenceInterval as 'WEEKLY' | 'MONTHLY' | 'YEARLY' | undefined,
+            startDate: args.startDate,
+          });
+        }
+      } else if (name === 'log_income') {
+        if (typeof args.sourceName !== 'string') {
+          toolResult = { success: false, error: 'sourceName must be a string' };
+        } else if (typeof args.amount !== 'number') {
+          toolResult = { success: false, error: 'amount must be a number' };
+        } else {
+          toolResult = await handlers.logIncome({ sourceName: args.sourceName, amount: args.amount });
+        }
+      } else if (name === 'add_bill') {
+        if (typeof args.name !== 'string') {
+          toolResult = { success: false, error: 'name must be a string' };
+        } else if (typeof args.amount !== 'number') {
+          toolResult = { success: false, error: 'amount must be a number' };
+        } else if (typeof args.dueDate !== 'string') {
+          toolResult = { success: false, error: 'dueDate must be a string' };
+        } else {
+          toolResult = await handlers.addBill({
+            name: args.name,
+            amount: args.amount,
+            dueDate: args.dueDate,
+            recurrenceInterval: args.recurrenceInterval as 'WEEKLY' | 'MONTHLY' | 'YEARLY' | undefined,
+          });
+        }
+      } else if (name === 'mark_bill_paid') {
+        if (typeof args.billName !== 'string') {
+          toolResult = { success: false, error: 'billName must be a string' };
+        } else {
+          toolResult = await handlers.markBillPaid(args.billName);
+        }
       } else {
         toolResult = { success: false, error: `Unknown tool: ${name}` };
       }

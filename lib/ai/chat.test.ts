@@ -18,7 +18,14 @@ describe('generateChatReply', () => {
       json: async () => ({ candidates: [{ content: { role: 'model', parts: [{ text: 'Sure, happy to help!' }] } }] }),
     } as Response);
 
-    const handlers = { updateCycleAmount: vi.fn(), cancelCycle: vi.fn() };
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+    };
     const result = await generateChatReply('hey there', [], handlers);
 
     expect(result).toBe('Sure, happy to help!');
@@ -50,6 +57,10 @@ describe('generateChatReply', () => {
     const handlers = {
       updateCycleAmount: vi.fn().mockResolvedValue({ success: true, remainingAmount: 700 }),
       cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
     };
     const result = await generateChatReply('change it to 700', [], handlers);
 
@@ -73,7 +84,14 @@ describe('generateChatReply', () => {
         }),
       } as Response);
 
-    const handlers = { updateCycleAmount: vi.fn(), cancelCycle: vi.fn().mockResolvedValue({ success: true }) };
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn().mockResolvedValue({ success: true }),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+    };
     const result = await generateChatReply('cancel my cycle', [], handlers);
 
     expect(result).toBe('Your cycle has been cancelled.');
@@ -98,6 +116,10 @@ describe('generateChatReply', () => {
     const handlers = {
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn().mockResolvedValue({ success: false, error: 'No active cycle found' }),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
     };
     await generateChatReply('cancel my cycle', [], handlers);
 
@@ -118,7 +140,14 @@ describe('generateChatReply', () => {
   it('returns a generic fallback message when the Gemini call fails', async () => {
     vi.mocked(fetch).mockRejectedValue(new Error('network error'));
 
-    const handlers = { updateCycleAmount: vi.fn(), cancelCycle: vi.fn() };
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+    };
     const result = await generateChatReply('change it to 700', [], handlers);
 
     expect(result).toBe("Sorry, I couldn't catch that — try again in a moment.");
@@ -128,7 +157,14 @@ describe('generateChatReply', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(fetch).mockRejectedValue(new Error('network error'));
 
-    const handlers = { updateCycleAmount: vi.fn(), cancelCycle: vi.fn() };
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+    };
     await generateChatReply('change it to 700', [], handlers);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('generateChatReply failed', expect.any(Error));
@@ -141,7 +177,14 @@ describe('generateChatReply', () => {
       json: async () => ({ candidates: [{ content: { role: 'model', parts: [{ text: 'Sure, happy to help!' }] } }] }),
     } as Response);
 
-    const handlers = { updateCycleAmount: vi.fn(), cancelCycle: vi.fn() };
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+    };
     await generateChatReply('hey there', [], handlers);
 
     const requestBody = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
@@ -175,12 +218,221 @@ describe('generateChatReply', () => {
     const handlers = {
       updateCycleAmount: vi.fn().mockRejectedValue(new Error('unexpected db failure')),
       cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
     };
 
     const result = await generateChatReply('change it to 700', [], handlers);
 
     // The exception never propagates out of generateChatReply — it resolves to Gemini's
     // second-turn reply, exactly like any other tool failure.
+    expect(result).toBe('That action failed — try again.');
+
+    const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
+    const functionResponsePart = secondCallBody.contents.find((c: { parts?: { functionResponse?: unknown }[] }) =>
+      c.parts?.some((p) => p.functionResponse)
+    );
+    expect(functionResponsePart.parts[0].functionResponse.response).toEqual({
+      success: false,
+      error: 'That action failed — try again.',
+    });
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('calls addIncomeSource when Gemini requests add_income_source, then uses the follow-up reply', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  {
+                    functionCall: {
+                      name: 'add_income_source',
+                      args: { name: 'Casual job', type: 'FIXED', amount: 30, recurrenceInterval: 'WEEKLY', startDate: '2026-09-29T00:00:00.000Z' },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { role: 'model', parts: [{ text: "Added your casual job — $30/week starting Sep 29." }] } }],
+        }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn().mockResolvedValue({ success: true, id: 'income_1' }),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+    };
+    const result = await generateChatReply('I got a new casual job, $30/hour weekly starting next Monday', [], handlers);
+
+    expect(result).toBe('Added your casual job — $30/week starting Sep 29.');
+    expect(handlers.addIncomeSource).toHaveBeenCalledWith({
+      name: 'Casual job',
+      type: 'FIXED',
+      amount: 30,
+      recurrenceInterval: 'WEEKLY',
+      startDate: '2026-09-29T00:00:00.000Z',
+    });
+  });
+
+  it('calls logIncome when Gemini requests log_income, then uses the follow-up reply', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ functionCall: { name: 'log_income', args: { sourceName: 'Uber', amount: 85 } } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { role: 'model', parts: [{ text: 'Logged $85 from Uber.' }] } }],
+        }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn().mockResolvedValue({ success: true, id: 'entry_1' }),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+    };
+    const result = await generateChatReply('I just got $85 from Uber', [], handlers);
+
+    expect(result).toBe('Logged $85 from Uber.');
+    expect(handlers.logIncome).toHaveBeenCalledWith({ sourceName: 'Uber', amount: 85 });
+  });
+
+  it('calls addBill when Gemini requests add_bill, then uses the follow-up reply', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ functionCall: { name: 'add_bill', args: { name: 'Phone', amount: 30, dueDate: '2026-10-02T00:00:00.000Z' } } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { role: 'model', parts: [{ text: "Added your $30 phone bill, due Oct 2." }] } }],
+        }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn().mockResolvedValue({ success: true, id: 'bill_1' }),
+      markBillPaid: vi.fn(),
+    };
+    const result = await generateChatReply('add a phone bill, $30, due Oct 2', [], handlers);
+
+    expect(result).toBe('Added your $30 phone bill, due Oct 2.');
+    expect(handlers.addBill).toHaveBeenCalledWith({ name: 'Phone', amount: 30, dueDate: '2026-10-02T00:00:00.000Z' });
+  });
+
+  it('calls markBillPaid when Gemini requests mark_bill_paid, then uses the follow-up reply', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ functionCall: { name: 'mark_bill_paid', args: { billName: 'Phone' } } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { role: 'model', parts: [{ text: 'Marked your phone bill as paid.' }] } }],
+        }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn().mockResolvedValue({ success: true, expenseId: 'expense_1' }),
+    };
+    const result = await generateChatReply('I paid the phone bill', [], handlers);
+
+    expect(result).toBe('Marked your phone bill as paid.');
+    expect(handlers.markBillPaid).toHaveBeenCalledWith('Phone');
+  });
+
+  it('relays a thrown error from the addBill handler to Gemini as a {success:false} result, and logs it, instead of letting the exception propagate', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ functionCall: { name: 'add_bill', args: { name: 'Phone', amount: 30, dueDate: '2026-10-02T00:00:00.000Z' } } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { role: 'model', parts: [{ text: 'That action failed — try again.' }] } }],
+        }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn().mockRejectedValue(new Error('unexpected db failure')),
+      markBillPaid: vi.fn(),
+    };
+
+    const result = await generateChatReply('add a phone bill, $30, due Oct 2', [], handlers);
+
     expect(result).toBe('That action failed — try again.');
 
     const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
@@ -217,7 +469,14 @@ describe('generateChatReply', () => {
         }),
       } as Response);
 
-    const handlers = { updateCycleAmount: vi.fn(), cancelCycle: vi.fn() };
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+    };
     const result = await generateChatReply('change it to some amount', [], handlers);
 
     expect(result).toBe("I couldn't tell what amount you meant.");
