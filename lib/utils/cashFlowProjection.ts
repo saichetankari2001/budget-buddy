@@ -91,10 +91,14 @@ export function computeCashFlowProjection(input: {
   }
 
   // No income or bill occurrence ever fell inside the window — the balance never moves, so the
-  // starting balance is trivially the (only) value across the whole trajectory.
+  // starting balance is trivially the (only) value across the whole trajectory. Anchor the "min"
+  // date at the END of the window (not today) so daysUntilMin below spans the full remaining
+  // cycle rather than flooring to 1 day — otherwise safeToSpendPerDay would report the ENTIRE
+  // balance as "today's" allowance instead of spreading it evenly across the days left, which is
+  // misleading for a figure the UI presents as a daily budget.
   if (minFutureBalance === Infinity) {
     minFutureBalance = input.currentBalance;
-    minFutureBalanceDate = today;
+    minFutureBalanceDate = endDate;
   }
 
   const isShortfall = minFutureBalance < 0;
