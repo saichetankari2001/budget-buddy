@@ -24,6 +24,20 @@ export function computeCommittedSpend(
   }, 0);
 }
 
+export function computeBillOccurrences(
+  templates: { amount: number; recurrenceInterval: RecurrenceInterval; date: Date; label: string }[],
+  windowStart: Date,
+  windowEnd: Date
+): { date: Date; amount: number; label: string }[] {
+  return templates.flatMap((template) =>
+    computeMissingOccurrences(template.recurrenceInterval, template.date, windowStart, windowEnd).map((date) => ({
+      date,
+      amount: template.amount,
+      label: template.label,
+    }))
+  );
+}
+
 export function computeSafeToSpend(input: {
   startingAmount: number;
   committedSpend: number;
