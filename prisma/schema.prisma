@@ -26,6 +26,11 @@ enum MessageKind {
   CHAT
 }
 
+enum IncomeSourceType {
+  FIXED
+  IRREGULAR
+}
+
 model User {
   id                String            @id @default(cuid())
   email             String            @unique
@@ -33,6 +38,8 @@ model User {
   createdAt         DateTime          @default(now())
   categories        Category[]
   expenses          Expense[]
+  incomeSources     IncomeSource[]
+  bills             Bill[]
   budgets           Budget[]
   moneyCycles       MoneyCycle[]
   pushSubscriptions PushSubscription[]
@@ -47,6 +54,7 @@ model Category {
   isGstFree Boolean   @default(false)
   createdAt DateTime  @default(now())
   expenses  Expense[]
+  bills     Bill[]
   budgets   Budget[]
 
   @@unique([userId, name])
@@ -67,6 +75,7 @@ model Expense {
   recurringSourceId  String?
   recurringSource    Expense?            @relation("RecurringInstances", fields: [recurringSourceId], references: [id], onDelete: SetNull)
   recurringInstances Expense[]           @relation("RecurringInstances")
+  bill               Bill?
 
   @@index([userId, date])
 }
@@ -116,4 +125,48 @@ model PushSubscription {
   p256dh    String
   auth      String
   createdAt DateTime @default(now())
+}
+
+model IncomeSource {
+  id                 String              @id @default(cuid())
+  userId             String
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  type               IncomeSourceType
+  amount             Decimal?            @db.Decimal(10, 2)
+  recurrenceInterval RecurrenceInterval?
+  startDate          DateTime
+  createdAt          DateTime            @default(now())
+  entries            IncomeEntry[]
+
+  @@unique([userId, name])
+}
+
+model IncomeEntry {
+  id             String       @id @default(cuid())
+  incomeSourceId String
+  incomeSource   IncomeSource @relation(fields: [incomeSourceId], references: [id], onDelete: Cascade)
+  amount         Decimal      @db.Decimal(10, 2)
+  date           DateTime
+  createdAt      DateTime     @default(now())
+
+  @@index([incomeSourceId, date])
+}
+
+model Bill {
+  id                 String              @id @default(cuid())
+  userId             String
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  amount             Decimal             @db.Decimal(10, 2)
+  dueDate            DateTime
+  recurrenceInterval RecurrenceInterval?
+  categoryId         String?
+  category           Category?           @relation(fields: [categoryId], references: [id])
+  paidExpenseId      String?             @unique
+  paidExpense        Expense?            @relation(fields: [paidExpenseId], references: [id], onDelete: SetNull)
+  createdAt          DateTime            @default(now())
+
+  @@unique([userId, name])
+  @@index([userId, dueDate])
 }
