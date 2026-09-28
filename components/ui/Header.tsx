@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/expenses', label: 'Expenses' },
   { href: '/budgets', label: 'Budgets' },
+  { href: '/cashflow', label: 'Cash Flow' },
 ];
 
 export function Header() {
