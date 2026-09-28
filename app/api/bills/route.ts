@@ -40,6 +40,7 @@ export async function GET() {
     }
 
     const bills = await prisma.bill.findMany({ where: { userId: user.userId }, orderBy: { dueDate: 'asc' } });
+    const now = new Date();
     return NextResponse.json(
       bills.map((b) => ({
         id: b.id,
@@ -48,7 +49,11 @@ export async function GET() {
         dueDate: b.dueDate,
         recurrenceInterval: b.recurrenceInterval,
         categoryId: b.categoryId,
-        isPaidThisPeriod: b.paidExpenseId !== null,
+        // `paidExpenseId !== null` alone is stale forever for a recurring bill: it is never cleared,
+        // so a monthly bill paid once reports "paid" for the rest of time even after dueDate has
+        // advanced to the next period. Pairing it with `dueDate > now` matches the exact condition
+        // markBillPaid already uses as its own "already paid for this period" guard.
+        isPaidThisPeriod: b.paidExpenseId !== null && b.dueDate > now,
       }))
     );
   } catch (error) {

@@ -1,6 +1,7 @@
 import { Prisma, RecurrenceInterval } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { computeNextOccurrence } from '@/lib/utils/recurringOccurrences';
+import { createBillActionSchema } from '@/lib/validation/bill.schema';
 
 type ActionResult<T = object> = ({ success: true } & T) | { success: false; error: string };
 
@@ -18,17 +19,31 @@ async function findOrCreateBillsCategory(userId: string): Promise<string> {
 
 export async function addBill(
   userId: string,
-  input: { name: string; amount: number; dueDate: Date; recurrenceInterval?: RecurrenceInterval; categoryId?: string }
+  input: {
+    name: string;
+    amount: number;
+    dueDate: Date;
+    recurrenceInterval?: RecurrenceInterval | null;
+    categoryId?: string | null;
+  }
 ): Promise<ActionResult<{ id: string }>> {
+  // Validated here, not just at the route layer: this function is reached by BOTH the REST route
+  // (which Zod-parses first) and the chat tool handler (which only does loose typeof guards), so the
+  // same rules have to hold whichever caller arrives.
+  const parsed = createBillActionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
   try {
     const created = await prisma.bill.create({
       data: {
         userId,
-        name: input.name,
-        amount: input.amount,
-        dueDate: input.dueDate,
-        recurrenceInterval: input.recurrenceInterval,
-        categoryId: input.categoryId,
+        name: parsed.data.name,
+        amount: parsed.data.amount,
+        dueDate: parsed.data.dueDate,
+        recurrenceInterval: parsed.data.recurrenceInterval ?? undefined,
+        categoryId: parsed.data.categoryId ?? undefined,
       },
     });
     return { success: true, id: created.id };
@@ -59,24 +74,31 @@ export async function markBillPaid(userId: string, billName: string): Promise<Ac
 
   const categoryId = bill.categoryId ?? (await findOrCreateBillsCategory(userId));
 
-  const expense = await prisma.expense.create({
-    data: {
-      userId,
-      categoryId,
-      amount: Number(bill.amount),
-      description: billName,
-      date: bill.dueDate,
-    },
-  });
-
   const nextDueDate = bill.recurrenceInterval
     ? computeNextOccurrence(bill.recurrenceInterval, bill.dueDate, bill.dueDate)
     : bill.dueDate;
 
-  await prisma.bill.update({
-    where: { id: bill.id },
-    data: { paidExpenseId: expense.id, dueDate: nextDueDate },
+  // Both writes commit together (same $transaction convention as POST /api/cycles): a crash between
+  // them would otherwise leave a committed Expense against a Bill whose dueDate never advanced, and
+  // the retry — seeing the bill still due — would create a second, duplicate Expense.
+  const expenseId = await prisma.$transaction(async (tx) => {
+    const expense = await tx.expense.create({
+      data: {
+        userId,
+        categoryId,
+        amount: Number(bill.amount),
+        description: billName,
+        date: bill.dueDate,
+      },
+    });
+
+    await tx.bill.update({
+      where: { id: bill.id },
+      data: { paidExpenseId: expense.id, dueDate: nextDueDate },
+    });
+
+    return expense.id;
   });
 
-  return { success: true, expenseId: expense.id };
+  return { success: true, expenseId };
 }

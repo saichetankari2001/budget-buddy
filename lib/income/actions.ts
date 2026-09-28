@@ -1,21 +1,31 @@
 import { Prisma, IncomeSourceType, RecurrenceInterval } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { createIncomeSourceActionSchema } from '@/lib/validation/incomeSource.schema';
 
 type ActionResult<T = object> = ({ success: true } & T) | { success: false; error: string };
 
 export async function addIncomeSource(
   userId: string,
-  input: { name: string; type: IncomeSourceType; amount?: number; recurrenceInterval?: RecurrenceInterval; startDate: Date }
+  input: { name: string; type: IncomeSourceType; amount?: number | null; recurrenceInterval?: RecurrenceInterval | null; startDate: Date }
 ): Promise<ActionResult<{ id: string }>> {
+  // Validated here, not just at the route layer: this function is reached by BOTH the REST route
+  // (which Zod-parses first) and the chat tool handler (which only does loose typeof guards). Without
+  // this, the chat path could create a FIXED source with a null amount and null cadence — a phantom
+  // "$0.00" income event in the projection and a "Fixed · repeats " artifact in the UI.
+  const parsed = createIncomeSourceActionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
   try {
     const created = await prisma.incomeSource.create({
       data: {
         userId,
-        name: input.name,
-        type: input.type,
-        amount: input.amount,
-        recurrenceInterval: input.recurrenceInterval,
-        startDate: input.startDate,
+        name: parsed.data.name,
+        type: parsed.data.type,
+        amount: parsed.data.amount ?? undefined,
+        recurrenceInterval: parsed.data.recurrenceInterval ?? undefined,
+        startDate: parsed.data.startDate,
       },
     });
     return { success: true, id: created.id };

@@ -8,6 +8,11 @@ describe('updateCycleAmount', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-15T00:00:00.000Z'));
+    // updateCycleAmount now derives its figures through the shared projectCycle, which reads Bill and
+    // IncomeSource rows too — these are the "nothing else going on" defaults individual tests override.
+    prismaMock.bill.findMany.mockResolvedValue([]);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
   });
 
   afterEach(() => {
@@ -53,6 +58,41 @@ describe('updateCycleAmount', () => {
     // the chat route's own CHAT-kind reply is now the sole user-facing message for a chat-initiated change.
     expect(prismaMock.coachMessage.create).not.toHaveBeenCalled();
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('quotes a safeToSpend that accounts for Bill rows, matching the dashboard instead of a flat average', async () => {
+    // The contradiction this fixes: the dashboard (GET /api/cycles/active) saw this bill and quoted
+    // the real dip, while the chat's reply to "change it to $700" quoted 700/5 = $140/day, because
+    // the flat-average path here was blind to the Bill table.
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({
+      id: 'cycle_1',
+      userId: 'user_1',
+      startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-09-10T00:00:00.000Z'),
+      endDate: new Date('2026-09-20T00:00:00.000Z'),
+      status: 'ACTIVE',
+      createdAt: new Date(),
+    } as never);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.bill.findMany.mockResolvedValue([
+      {
+        id: 'bill_1', userId: 'user_1', name: 'Rent', amount: { toString: () => '600.00' } as never,
+        dueDate: new Date('2026-09-18T00:00:00.000Z'), recurrenceInterval: null, paidExpenseId: null,
+      },
+    ] as never);
+    prismaMock.moneyCycle.update.mockResolvedValue({ id: 'cycle_1' } as never);
+
+    const result = await updateCycleAmount('user_1', 700);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.remainingAmount).toBe(700);
+      expect(result.daysRemaining).toBe(5);
+      // Sep 18 (day 3) is the real low point: 700 - 600 = 100, spread over the 3 days up to it.
+      expect(result.safeToSpend).toBeCloseTo(100 / 3, 10);
+      expect(result.safeToSpend).not.toBe(140); // the old flat average, 700 / 5
+    }
   });
 
   it('returns a failure result when the user has no active cycle', async () => {

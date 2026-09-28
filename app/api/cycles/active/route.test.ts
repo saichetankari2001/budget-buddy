@@ -129,7 +129,7 @@ describe('GET /api/cycles/active', () => {
       { id: 'inc_1', userId: 'user_1', type: 'FIXED', amount: { toString: () => '400.00' } as never, recurrenceInterval: null, startDate: new Date('2026-09-29T00:00:00.000Z'), name: 'Job' },
     ] as never);
     prismaMock.bill.findMany.mockResolvedValue([
-      { id: 'bill_1', userId: 'user_1', amount: { toString: () => '735.00' } as never, dueDate: new Date('2026-09-30T00:00:00.000Z'), recurrenceInterval: null, name: 'Rent + Subscription' },
+      { id: 'bill_1', userId: 'user_1', amount: { toString: () => '735.00' } as never, dueDate: new Date('2026-09-30T00:00:00.000Z'), recurrenceInterval: null, paidExpenseId: null, name: 'Rent + Subscription' },
     ] as never);
 
     const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
@@ -211,5 +211,67 @@ describe('GET /api/cycles/active', () => {
     // The dip on Sep 16 is the true minimum for the rest of the window (nothing else moves the
     // balance), so safeToSpend must reflect the post-gym balance, not the pre-gym 500.
     expect(json.safeToSpend).toBeLessThan(500);
+  });
+
+  it('includes an overdue, still-unpaid one-time bill in the projection, folded into today', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({
+      id: 'cycle_1', userId: 'user_1', startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-09-10T00:00:00.000Z'), endDate: new Date('2026-09-20T00:00:00.000Z'),
+      status: 'ACTIVE', messages: [],
+    } as never);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    // Due Sep 12 — three days ago and still unpaid. Money that still has to come out of the current
+    // balance, so it must not be silently dropped for being in the past.
+    prismaMock.bill.findMany.mockResolvedValue([
+      {
+        id: 'bill_overdue', userId: 'user_1', name: 'Council rates',
+        amount: { toString: () => '200.00' } as never,
+        dueDate: new Date('2026-09-12T00:00:00.000Z'), recurrenceInterval: null, paidExpenseId: null,
+      },
+    ] as never);
+
+    const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
+
+    const json = await res.json();
+    const today = json.projection[0];
+    expect(today.date).toBe(new Date('2026-09-15T00:00:00.000Z').toISOString());
+    expect(today.events).toContainEqual({ label: 'Council rates', amount: -200 });
+    expect(today.balance).toBe(300); // 500 - 200, charged against today rather than dropped
+    // The dip lands on day 0, so the existing "floor the day count at 1" rule hands the whole
+    // post-bill balance to today. What matters here is that it is 300, not the 500 the projection
+    // reported while the overdue bill was being silently dropped.
+    expect(json.safeToSpend).toBe(300);
+  });
+
+  it('excludes an already-settled one-time bill whose dueDate is in the past (no double-counting)', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({
+      id: 'cycle_1', userId: 'user_1', startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-09-10T00:00:00.000Z'), endDate: new Date('2026-09-20T00:00:00.000Z'),
+      status: 'ACTIVE', messages: [],
+    } as never);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    // Same past due date, but paidExpenseId is set. For a ONE-TIME bill that means settled forever —
+    // its cost already landed as a real Expense, so re-projecting it would charge the user twice.
+    prismaMock.bill.findMany.mockResolvedValue([
+      {
+        id: 'bill_settled', userId: 'user_1', name: 'Council rates',
+        amount: { toString: () => '200.00' } as never,
+        dueDate: new Date('2026-09-12T00:00:00.000Z'), recurrenceInterval: null, paidExpenseId: 'exp_settled',
+      },
+    ] as never);
+
+    const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
+
+    const json = await res.json();
+    expect(json.projection.every((d: { events: unknown[] }) => d.events.length === 0)).toBe(true);
+    expect(json.safeToSpend).toBe(100); // 500 / 5 — untouched by the settled bill
   });
 });

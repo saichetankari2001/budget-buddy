@@ -148,6 +148,9 @@ test('cashflow page with an active cycle and a bill shows the projection list an
   // state) before scanning: the bill's amount appears inline as an event on its due-date row,
   // which only exists once /api/cycles/active has returned a populated `projection` array.
   await expect(page.getByText('Rent -$800.00')).toBeVisible();
+  // The visual flag the whole feature exists to surface — the lowest projected balance in the cycle.
+  // Without this the test would pass on a projection that rendered rows but never flagged the dip.
+  await expect(page.getByText('Lowest point')).toBeVisible();
 
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
   expect(results.violations).toEqual([]);

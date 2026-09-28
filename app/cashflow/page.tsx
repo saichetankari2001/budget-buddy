@@ -21,13 +21,16 @@ export default async function CashFlowPage() {
     startDate: s.startDate.toISOString(),
   }));
 
+  const now = new Date();
   const serializedBills = bills.map((b) => ({
     id: b.id,
     name: b.name,
     amount: Number(b.amount),
     dueDate: b.dueDate.toISOString(),
     recurrenceInterval: b.recurrenceInterval ?? undefined,
-    isPaidThisPeriod: b.paidExpenseId !== null,
+    // See GET /api/bills for why `paidExpenseId !== null` alone is stale forever on a recurring
+    // bill — this pairs it with the same "is it currently due" check markBillPaid guards on.
+    isPaidThisPeriod: b.paidExpenseId !== null && b.dueDate > now,
   }));
 
   return (

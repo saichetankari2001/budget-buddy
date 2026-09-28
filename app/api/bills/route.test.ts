@@ -71,4 +71,29 @@ describe('GET /api/bills', () => {
     expect(res.status).toBe(200);
     expect(prismaMock.bill.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'user_1' } }));
   });
+
+  it('reports isPaidThisPeriod: false for a recurring bill whose dueDate has advanced into the future', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    // paidExpenseId is never cleared, so on its own it reports "paid" forever after the first
+    // payment. Here the bill was paid last month and dueDate has already rolled to next month's
+    // occurrence — which means it IS currently due, and the UI must offer "Mark paid" again.
+    prismaMock.bill.findMany.mockResolvedValue([
+      {
+        id: 'bill_1', userId: 'user_1', name: 'Rent', amount: { toString: () => '800.00' } as never,
+        dueDate: new Date(Date.now() - 24 * 60 * 60 * 1000), // yesterday: due now
+        recurrenceInterval: 'MONTHLY', categoryId: null, paidExpenseId: 'exp_last_month', createdAt: new Date(),
+      },
+      {
+        id: 'bill_2', userId: 'user_1', name: 'Internet', amount: { toString: () => '70.00' } as never,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // a week away: settled for this period
+        recurrenceInterval: 'MONTHLY', categoryId: null, paidExpenseId: 'exp_this_month', createdAt: new Date(),
+      },
+    ] as never);
+
+    const res = await GET();
+    const json = await res.json();
+
+    expect(json.find((b: { id: string }) => b.id === 'bill_1').isPaidThisPeriod).toBe(false);
+    expect(json.find((b: { id: string }) => b.id === 'bill_2').isPaidThisPeriod).toBe(true);
+  });
 });

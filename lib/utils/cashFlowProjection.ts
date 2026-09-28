@@ -47,10 +47,15 @@ export function computeCashFlowProjection(input: {
   const eventsByDay = new Map<number, { label: string; amount: number }[]>();
   const addEvent = (event: ProjectionEvent, sign: 1 | -1) => {
     const dayOffset = daysBetween(today, startOfDay(event.date));
-    if (dayOffset < 0 || dayOffset > totalDays) return;
-    const existing = eventsByDay.get(dayOffset) ?? [];
+    if (dayOffset > totalDays) return;
+    // A past-dated event (negative offset) is folded into day 0 rather than dropped: an overdue,
+    // still-unpaid bill is money that has to come out of today's balance, so silently discarding it
+    // would make the projection look healthier than reality. Events beyond the window end stay
+    // excluded — they belong to the next cycle, not this one.
+    const clampedOffset = Math.max(dayOffset, 0);
+    const existing = eventsByDay.get(clampedOffset) ?? [];
     existing.push({ label: event.label, amount: sign * event.amount });
-    eventsByDay.set(dayOffset, existing);
+    eventsByDay.set(clampedOffset, existing);
   };
   input.fixedIncomeOccurrences.forEach((e) => addEvent(e, 1));
   input.billOccurrences.forEach((e) => addEvent(e, -1));

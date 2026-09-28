@@ -139,4 +139,57 @@ describe('computeCashFlowProjection', () => {
     expect(result.isShortfall).toBe(true);
     expect(result.safeToSpendPerDay).toBe(0);
   });
+
+  it('folds a past-dated event into day 0 rather than dropping it', () => {
+    // An overdue, still-unpaid bill is money that still has to come out of today's balance. Dropping
+    // it (the old `dayOffset < 0` guard) made the projection look healthier than reality.
+    const today = new Date('2026-09-24T00:00:00.000Z');
+    const endDate = new Date('2026-09-28T00:00:00.000Z');
+    const result = computeCashFlowProjection({
+      currentBalance: 300,
+      today,
+      endDate,
+      fixedIncomeOccurrences: [],
+      billOccurrences: [{ date: new Date('2026-09-20T00:00:00.000Z'), amount: 200, label: 'Overdue rates' }],
+    });
+
+    expect(result.trajectory[0].events).toContainEqual({ label: 'Overdue rates', amount: -200 });
+    expect(result.trajectory[0].balance).toBe(100); // 300 - 200, charged today
+    expect(result.trajectory.every((d) => d.balance === 100)).toBe(true);
+    expect(result.minFutureBalance).toBe(100);
+  });
+
+  it('still drops an event beyond the window end (only the negative half of the old guard changed)', () => {
+    const today = new Date('2026-09-24T00:00:00.000Z');
+    const endDate = new Date('2026-09-26T00:00:00.000Z');
+    const result = computeCashFlowProjection({
+      currentBalance: 300,
+      today,
+      endDate,
+      fixedIncomeOccurrences: [],
+      billOccurrences: [{ date: new Date('2026-10-15T00:00:00.000Z'), amount: 200, label: 'Next cycle bill' }],
+    });
+
+    expect(result.trajectory.every((d) => d.events.length === 0)).toBe(true);
+    expect(result.trajectory.every((d) => d.balance === 300)).toBe(true);
+  });
+
+  it('spreads the whole balance across the window when no event fires anywhere in it', () => {
+    // The "no events at all" fallback anchors the min at the window END, not today, so this reads as
+    // a daily allowance (400 / 5 = 80) instead of handing the user the entire 400 as "today's" budget.
+    const today = new Date('2026-09-24T00:00:00.000Z');
+    const endDate = new Date('2026-09-29T00:00:00.000Z'); // 5 days out
+    const result = computeCashFlowProjection({
+      currentBalance: 400,
+      today,
+      endDate,
+      fixedIncomeOccurrences: [],
+      billOccurrences: [],
+    });
+
+    expect(result.isShortfall).toBe(false);
+    expect(result.minFutureBalance).toBe(400);
+    expect(result.safeToSpendPerDay).toBe(80);
+    expect(result.safeToSpendPerDay).not.toBe(400);
+  });
 });

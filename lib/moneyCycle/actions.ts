@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { computeDaysRemaining, computeCommittedSpend, computeSafeToSpend } from '@/lib/utils/moneyCycle';
+import { projectCycle } from '@/lib/moneyCycle/projectCycle';
 
 type ActionResult<T = object> =
   | ({ success: true } & T)
@@ -28,26 +28,15 @@ export async function updateCycleAmount(
     return { success: false, error: 'No active cycle found' };
   }
 
-  const now = new Date();
-  const recurringTemplates = await prisma.expense.findMany({
-    where: { userId, isRecurring: true },
+  // Derived through the same shared projection the dashboard uses, with `newAmount` standing in as
+  // the hypothetical starting amount. Previously this path used a flat average that could not see
+  // Bill or IncomeSource rows, so the chat's reply to "change it to $700" could quote a completely
+  // different daily figure from the dashboard card sitting right above it.
+  const { remainingAmount, daysRemaining, safeToSpend } = await projectCycle(userId, {
+    startingAmount: newAmount,
+    startDate: cycle.startDate,
+    endDate: cycle.endDate,
   });
-  const committedSpend = computeCommittedSpend(
-    recurringTemplates
-      .filter((t) => t.recurrenceInterval !== null)
-      .map((t) => ({ amount: Number(t.amount), recurrenceInterval: t.recurrenceInterval!, date: t.date })),
-    now,
-    cycle.endDate
-  );
-  const daysRemaining = computeDaysRemaining(cycle.endDate, now);
-
-  const spentAggregate = await prisma.expense.aggregate({
-    where: { userId, date: { gte: cycle.startDate, lte: now } },
-    _sum: { amount: true },
-  });
-  const spentSoFar = Number(spentAggregate._sum.amount ?? 0);
-  const remainingAmount = Math.max(newAmount - spentSoFar - committedSpend, 0);
-  const safeToSpend = computeSafeToSpend({ startingAmount: remainingAmount, committedSpend: 0, daysRemaining });
 
   await prisma.moneyCycle.update({ where: { id: cycle.id }, data: { startingAmount: newAmount } });
 

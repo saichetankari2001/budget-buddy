@@ -8,6 +8,12 @@ export function computeDaysRemaining(endDate: Date, today: Date): number {
   return Math.max(days, 1);
 }
 
+/**
+ * @deprecated Flat-average helper with no production callers left. It only ever saw legacy recurring
+ * Expense templates — it is blind to Bill and IncomeSource rows — which is exactly how the dashboard
+ * and the chat ended up quoting different numbers for the same cycle. Derive cycle figures through
+ * `lib/moneyCycle/projectCycle.ts` instead; kept only for its own unit tests.
+ */
 export function computeCommittedSpend(
   templates: { amount: number; recurrenceInterval: RecurrenceInterval; date: Date }[],
   windowStart: Date,
@@ -44,6 +50,11 @@ export function computeBillOccurrences(
   );
 }
 
+/**
+ * @deprecated Flat-average helper with no production callers left — see computeCommittedSpend above.
+ * `projectCycle`'s `safeToSpend` (from computeCashFlowProjection) is the real figure: it knows when
+ * the money actually leaves and lands, not just the total.
+ */
 export function computeSafeToSpend(input: {
   startingAmount: number;
   committedSpend: number;

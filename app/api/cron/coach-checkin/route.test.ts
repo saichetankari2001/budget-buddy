@@ -16,6 +16,11 @@ describe('POST /api/cron/coach-checkin', () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-15T00:00:00.000Z')); // safely between the fixtures' Sep 10 startDate and Sep 20 endDate
+    // Each cycle's figures now come from the shared projectCycle, which reads Bill and IncomeSource
+    // rows as well as expenses — these are the "nothing else going on" defaults tests override.
+    prismaMock.bill.findMany.mockResolvedValue([]);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
   });
 
   afterEach(() => {
@@ -72,6 +77,55 @@ describe('POST /api/cron/coach-checkin', () => {
       expect.objectContaining({ data: expect.objectContaining({ cycleId: 'cycle_1', kind: 'CHECK_IN' }) })
     );
     expect(sendPushNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns about a real projected shortfall instead of telling the user they are on track', async () => {
+    // THE regression test for this whole fix. The cron's old flat-average calculation could not see
+    // Bill rows at all, so a user with a $735 bill landing inside a $100 cycle got a cheerful "you're
+    // on track" PUSH NOTIFICATION. The shortfall now has to reach the message generator.
+    process.env.CRON_SECRET = 'test-secret';
+    prismaMock.moneyCycle.findMany.mockResolvedValue([
+      {
+        id: 'cycle_short',
+        userId: 'user_short',
+        startingAmount: { toString: () => '100.00' } as never,
+        startDate: new Date('2026-09-10T00:00:00.000Z'),
+        endDate: new Date('2026-09-20T00:00:00.000Z'),
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      } as never,
+    ]);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.bill.findMany.mockResolvedValue([
+      {
+        id: 'bill_rent', userId: 'user_short', name: 'Rent',
+        amount: { toString: () => '735.00' } as never,
+        dueDate: new Date('2026-09-18T00:00:00.000Z'), recurrenceInterval: null, paidExpenseId: null,
+      },
+    ] as never);
+    vi.mocked(generateCheckInMessage).mockResolvedValue('Heads up — rent is going to hurt.');
+    prismaMock.coachMessage.create.mockResolvedValue({
+      id: 'msg_short', cycleId: 'cycle_short', kind: 'CHECK_IN',
+      content: 'Heads up — rent is going to hurt.', createdAt: new Date(),
+    } as never);
+    prismaMock.pushSubscription.findMany.mockResolvedValue([]);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cron/coach-checkin', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-secret' },
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const checkInInput = vi.mocked(generateCheckInMessage).mock.calls[0][0];
+    expect(checkInInput.shortfallWarning).toBeTruthy();
+    expect(checkInInput.shortfallWarning).toContain('short by');
+    // 100 - 735 = -635 on Sep 18, so the warning must quote the real gap, and safeToSpend must be
+    // clamped to 0 rather than reporting 100/5 = $20/day of headroom the user does not have.
+    expect(checkInInput.shortfallWarning).toContain('635');
+    expect(checkInInput.safeToSpend).toBe(0);
   });
 
   it('completes past-due cycles instead of checking them in', async () => {

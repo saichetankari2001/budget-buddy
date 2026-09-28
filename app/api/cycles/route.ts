@@ -6,7 +6,7 @@ import { createMoneyCycleSchema } from '@/lib/validation/moneyCycle.schema';
 import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { generatePlanMessage } from '@/lib/ai/coach';
-import { computeDaysRemaining, computeCommittedSpend, computeSafeToSpend } from '@/lib/utils/moneyCycle';
+import { projectCycle } from '@/lib/moneyCycle/projectCycle';
 
 const ACTIVE_CYCLE_MESSAGE = 'You already have an active cycle. It will complete on its own at its end date.';
 
@@ -31,25 +31,21 @@ export async function POST(request: NextRequest) {
     const startDate = new Date();
     const parsedEndDate = new Date(endDate);
 
-    const recurringTemplates = await prisma.expense.findMany({
-      where: { userId: user.userId, isRecurring: true },
-    });
-    const committedSpend = computeCommittedSpend(
-      recurringTemplates
-        .filter((t) => t.recurrenceInterval !== null)
-        .map((t) => ({ amount: Number(t.amount), recurrenceInterval: t.recurrenceInterval!, date: t.date })),
-      startDate,
-      parsedEndDate
+    // The cycle row itself isn't needed to derive these figures, so this runs before the create —
+    // the same shared derivation the dashboard and the coach cron use, so the plan message a user
+    // reads at creation time agrees with the card they land on immediately afterwards.
+    const { remainingAmount, daysRemaining, safeToSpend, committedSpend, shortfallWarning } = await projectCycle(
+      user.userId,
+      { startingAmount, startDate, endDate: parsedEndDate },
+      startDate
     );
-    const daysRemaining = computeDaysRemaining(parsedEndDate, startDate);
-    const safeToSpend = computeSafeToSpend({ startingAmount, committedSpend, daysRemaining });
-    const remainingAmount = Math.max(startingAmount - committedSpend, 0);
 
     const planMessageText = await generatePlanMessage({
       startingAmount,
       committedSpend,
       daysRemaining,
       safeToSpend,
+      shortfallWarning,
     });
 
     let result;

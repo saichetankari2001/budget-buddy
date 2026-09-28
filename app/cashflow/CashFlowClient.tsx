@@ -38,6 +38,9 @@ export function CashFlowClient({
   const [bills, setBills] = useState(initialBills);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
   const [showBillForm, setShowBillForm] = useState(false);
+  // Bumped after any action that changes the real cash-flow picture, so ProjectionList refetches
+  // instead of showing the projection it loaded on mount until a manual page reload.
+  const [projectionRefreshKey, setProjectionRefreshKey] = useState(0);
 
   async function refreshIncomeSources() {
     const res = await fetch('/api/income-sources');
@@ -61,6 +64,7 @@ export function CashFlowClient({
       return;
     }
     await refreshIncomeSources();
+    setProjectionRefreshKey((k) => k + 1);
     setShowIncomeForm(false);
   }
 
@@ -76,6 +80,7 @@ export function CashFlowClient({
       return;
     }
     await refreshBills();
+    setProjectionRefreshKey((k) => k + 1);
     setShowBillForm(false);
   }
 
@@ -87,6 +92,7 @@ export function CashFlowClient({
       return;
     }
     await refreshBills();
+    setProjectionRefreshKey((k) => k + 1);
   }
 
   return (
@@ -190,7 +196,7 @@ export function CashFlowClient({
         )}
       </Card>
 
-      <ProjectionList />
+      <ProjectionList refreshKey={projectionRefreshKey} />
     </div>
   );
 }

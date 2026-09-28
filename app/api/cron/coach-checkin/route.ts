@@ -5,7 +5,8 @@ import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { generateCheckInMessage } from '@/lib/ai/coach';
 import { sendPushNotification } from '@/lib/push/send';
-import { computeDaysRemaining, computeCommittedSpend, computeSafeToSpend, computePacingStatus } from '@/lib/utils/moneyCycle';
+import { computeDaysRemaining, computePacingStatus } from '@/lib/utils/moneyCycle';
+import { projectCycle } from '@/lib/moneyCycle/projectCycle';
 
 export const maxDuration = 60;
 
@@ -55,26 +56,20 @@ async function handleCheckIn(request: NextRequest) {
         const startingAmount = Number(cycle.startingAmount);
         const totalDays = computeDaysRemaining(cycle.endDate, cycle.startDate);
         const daysElapsed = computeDaysRemaining(now, cycle.startDate);
-        const daysRemaining = computeDaysRemaining(cycle.endDate, now);
 
-        const recurringTemplates = await prisma.expense.findMany({
-          where: { userId: cycle.userId, isRecurring: true },
-        });
-        const committedSpend = computeCommittedSpend(
-          recurringTemplates
-            .filter((t) => t.recurrenceInterval !== null)
-            .map((t) => ({ amount: Number(t.amount), recurrenceInterval: t.recurrenceInterval!, date: t.date })),
-          now,
-          cycle.endDate
+        // The safety-critical call site: this message becomes a push notification. The old flat
+        // average here could not see Bill rows at all, so a user heading into a real projected
+        // shortfall would be told they were "on track". The shared projection sees the bills, and
+        // its shortfallWarning is now woven into the message.
+        const { remainingAmount, daysRemaining, safeToSpend, spentSoFar, shortfallWarning } = await projectCycle(
+          cycle.userId,
+          {
+            startingAmount,
+            startDate: cycle.startDate,
+            endDate: cycle.endDate,
+          },
+          now
         );
-
-        const spentAggregate = await prisma.expense.aggregate({
-          where: { userId: cycle.userId, date: { gte: cycle.startDate, lte: now } },
-          _sum: { amount: true },
-        });
-        const spentSoFar = Number(spentAggregate._sum.amount ?? 0);
-        const remainingAmount = Math.max(startingAmount - spentSoFar - committedSpend, 0);
-        const safeToSpend = computeSafeToSpend({ startingAmount: remainingAmount, committedSpend: 0, daysRemaining });
         const pacingStatus = computePacingStatus({ startingAmount, spentSoFar, daysElapsed, totalDays });
 
         const content = await generateCheckInMessage({
@@ -83,6 +78,7 @@ async function handleCheckIn(request: NextRequest) {
           daysRemaining,
           safeToSpend,
           pacingStatus,
+          shortfallWarning,
         });
 
         await prisma.coachMessage.create({ data: { cycleId: cycle.id, kind: 'CHECK_IN', content } });

@@ -64,6 +64,63 @@ describe('addIncomeSource', () => {
 
     expect(result).toEqual({ success: false, error: 'You already have an income source named "Uber"' });
   });
+
+  // The REST route Zod-parses before calling addIncomeSource, but the chat tool handler only does
+  // loose typeof guards — so the same rules have to be enforced here for the chat path to be safe.
+  it('rejects a FIXED source with no amount or recurrence, even when reached directly (the chat path)', async () => {
+    const result = await addIncomeSource('user_1', {
+      name: 'Casual job',
+      type: 'FIXED',
+      startDate: new Date('2026-09-29T00:00:00.000Z'),
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: 'FIXED income sources require an amount and a recurrence interval',
+    });
+    // Otherwise this becomes a phantom "$0.00" income event in the projection and a
+    // "Fixed · repeats " (trailing space) row in the cash-flow UI.
+    expect(prismaMock.incomeSource.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a FIXED source whose amount and recurrence arrive as explicit nulls', async () => {
+    const result = await addIncomeSource('user_1', {
+      name: 'Casual job',
+      type: 'FIXED',
+      amount: null,
+      recurrenceInterval: null,
+      startDate: new Date('2026-09-29T00:00:00.000Z'),
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: 'FIXED income sources require an amount and a recurrence interval',
+    });
+    expect(prismaMock.incomeSource.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a FIXED source with an amount but no recurrence interval', async () => {
+    const result = await addIncomeSource('user_1', {
+      name: 'Casual job',
+      type: 'FIXED',
+      amount: 151.2,
+      startDate: new Date('2026-09-29T00:00:00.000Z'),
+    });
+
+    expect(result.success).toBe(false);
+    expect(prismaMock.incomeSource.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unparseable start date (chat handlers construct Dates from free-form model text)', async () => {
+    const result = await addIncomeSource('user_1', {
+      name: 'Uber',
+      type: 'IRREGULAR',
+      startDate: new Date('sometime next week'), // Invalid Date — instanceof Date, but NaN time
+    });
+
+    expect(result).toEqual({ success: false, error: 'Invalid date' });
+    expect(prismaMock.incomeSource.create).not.toHaveBeenCalled();
+  });
 });
 
 describe('logIncomeEntry', () => {

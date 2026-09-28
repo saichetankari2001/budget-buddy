@@ -17,6 +17,12 @@ describe('POST /api/cycles', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-15T00:00:00.000Z')); // safely before the fixtures' Sep 20 endDate, within the schema's 400-day bound
+    // The POST handler now derives its figures through the shared projectCycle, which also reads
+    // Bill/IncomeSource/IncomeEntry rows — these are the "nothing else going on" defaults.
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.bill.findMany.mockResolvedValue([]);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
   });
 
   afterEach(() => {
@@ -64,6 +70,48 @@ describe('POST /api/cycles', () => {
     expect(prismaMock.moneyCycle.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: 'user_1', startingAmount: 500 }) })
     );
+  });
+
+  it("passes a real shortfallWarning into the plan message when a bill breaks the new cycle's budget", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(null);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    // $800 due inside a 5-day, $500 cycle — the plan message must not present this as a tidy budget.
+    prismaMock.bill.findMany.mockResolvedValue([
+      {
+        id: 'bill_1', userId: 'user_1', name: 'Rent', amount: { toString: () => '800.00' } as never,
+        dueDate: new Date('2026-09-18T00:00:00.000Z'), recurrenceInterval: null, paidExpenseId: null,
+      },
+    ] as never);
+    vi.mocked(generatePlanMessage).mockResolvedValue('Heads up.');
+    prismaMock.$transaction.mockImplementation(((callback: (tx: typeof prismaMock) => unknown) =>
+      callback(prismaMock)) as never);
+    prismaMock.moneyCycle.create.mockResolvedValue({
+      id: 'cycle_1', userId: 'user_1', startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-09-15T00:00:00.000Z'), endDate: new Date('2026-09-20T00:00:00.000Z'),
+      status: 'ACTIVE', createdAt: new Date(),
+    } as never);
+    prismaMock.coachMessage.create.mockResolvedValue({
+      id: 'msg_1', cycleId: 'cycle_1', kind: 'PLAN', content: 'Heads up.', createdAt: new Date(),
+    } as never);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cycles', {
+        method: 'POST',
+        body: JSON.stringify({ startingAmount: 500, endDate: '2026-09-20T00:00:00.000Z' }),
+      })
+    );
+
+    expect(res.status).toBe(201);
+    // lastCall, not calls[0]: this file has no clearAllMocks between tests, so calls[0] belongs to
+    // the earlier "creates a cycle" test.
+    const planInput = vi.mocked(generatePlanMessage).mock.lastCall![0];
+    expect(planInput.committedSpend).toBe(800); // the Bill is now visible here, not just to the dashboard
+    expect(planInput.safeToSpend).toBe(0);
+    expect(planInput.shortfallWarning).toBeTruthy();
+    expect(planInput.shortfallWarning).toContain('short by');
+    const json = await res.json();
+    expect(json.safeToSpend).toBe(0);
   });
 
   it('rejects with 400 when the user already has an active cycle', async () => {

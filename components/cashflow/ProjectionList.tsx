@@ -20,20 +20,34 @@ interface ActiveCycleProjection {
   projection: ProjectionDay[];
 }
 
-export function ProjectionList() {
+/**
+ * `refreshKey` lets the parent force a refetch: adding a bill, marking one paid, or adding an income
+ * source all change the real projection, and without this the list would keep showing the numbers it
+ * fetched on mount until the user manually reloaded the page.
+ */
+export function ProjectionList({ refreshKey = 0 }: { refreshKey?: number }) {
   const [cycle, setCycle] = useState<ActiveCycleProjection | null | undefined | 'error'>(undefined);
 
   useEffect(() => {
+    let cancelled = false;
     fetch('/api/cycles/active')
       .then(async (res) => {
+        if (cancelled) return;
         if (!res.ok) {
           setCycle('error');
           return;
         }
-        setCycle(await res.json());
+        const json = await res.json();
+        if (!cancelled) setCycle(json);
       })
-      .catch(() => setCycle('error'));
-  }, []);
+      .catch(() => {
+        if (!cancelled) setCycle('error');
+      });
+    // Guards against a slow earlier fetch resolving after a newer one and overwriting fresher data.
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
 
   if (cycle === undefined) {
     return null; // loading — avoid a flash of the empty-state prompt before the fetch resolves
