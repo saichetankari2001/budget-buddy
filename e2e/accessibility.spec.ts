@@ -110,6 +110,49 @@ test('dashboard with a saved budget renders progress bars and has no WCAG 2.1 A/
   expect(results.violations).toEqual([]);
 });
 
+test('cashflow page has no WCAG 2.1 A/AA violations', async ({ page }) => {
+  await signUp(page, 'a11y-cashflow');
+  await page.goto('/cashflow');
+  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test('cashflow page with an active cycle and a bill shows the projection list and has no WCAG 2.1 A/AA violations', async ({
+  page,
+}) => {
+  await signUp(page, 'a11y-cashflow-projection');
+  // The projection list renders one row per day of the cycle, each playing the same fade-slide-in
+  // opacity animation used by the income/bill rows above (see the "expenses page with a submitted
+  // expense" test above for the same fix). Scanning mid-animation on a list this size makes it easy
+  // to catch a transient low-opacity row; emulating reduced motion scans the real resting state.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/dashboard');
+  await page.getByLabel(/how much do you have/i).fill('500');
+  await page.getByLabel('Until when', { exact: true }).fill('2026-12-31');
+  await page.getByRole('button', { name: /^start$/i }).click();
+  await expect(page.getByText('Days left')).toBeVisible({ timeout: 15000 });
+
+  await page.goto('/cashflow');
+  await page.getByRole('button', { name: /add bill/i }).click();
+  await page.getByLabel(/^name$/i).fill('Rent');
+  await page.getByLabel(/amount/i).fill('800');
+  // exact: true — the substring/regex form also matches DateField's "Open due date calendar"
+  // button aria-label, causing a Playwright strict-mode ambiguity error.
+  await page.getByLabel('Due date', { exact: true }).fill('2026-10-01');
+  await page.getByRole('button', { name: /add bill/i }).click();
+
+  // exact: true — without it this would also match the projection row's "Rent -$800.00" text
+  // below, causing a Playwright strict-mode ambiguity error.
+  await expect(page.getByText('Rent', { exact: true })).toBeVisible();
+  // Confirms the projection list actually rendered real day-by-day data (not the empty/prompt
+  // state) before scanning: the bill's amount appears inline as an event on its due-date row,
+  // which only exists once /api/cycles/active has returned a populated `projection` array.
+  await expect(page.getByText('Rent -$800.00')).toBeVisible();
+
+  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test('privacy page has no WCAG 2.1 A/AA violations', async ({ page }) => {
   await page.goto('/privacy');
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();

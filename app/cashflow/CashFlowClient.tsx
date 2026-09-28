@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { RecurrenceInterval, IncomeSourceType } from '@prisma/client';
 import { IncomeSourceForm, CreateIncomeSourceInput } from '@/components/income/IncomeSourceForm';
 import { BillForm, CreateBillInput } from '@/components/bills/BillForm';
+import { ProjectionList } from '@/components/cashflow/ProjectionList';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -111,7 +112,13 @@ export function CashFlowClient({
             {incomeSources.map((source, index) => (
               <li
                 key={source.id}
-                className="animate-fade-slide-in flex items-center justify-between rounded-xl border border-border bg-card/50 px-4 py-3 text-sm motion-reduce:animate-none"
+                // bg-white/[0.03] (not bg-card/50): `card` is a plain rgba() string in
+                // tailwind.config.ts, which Tailwind's `/<opacity>` modifier can't decompose —
+                // `bg-card/50` silently compiled to a literal 50% opaque white (found via
+                // axe-core: it failed WCAG contrast against text-foreground) instead of the
+                // intended ~3% tint. `white` is a real Tailwind color, so its modifier works
+                // correctly; `[0.03]` reproduces the originally-intended half-as-opaque-as-Card look.
+                className="animate-fade-slide-in flex items-center justify-between rounded-xl border border-border bg-white/[0.03] px-4 py-3 text-sm motion-reduce:animate-none"
                 style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
               >
                 <div>
@@ -152,7 +159,9 @@ export function CashFlowClient({
             {bills.map((bill, index) => (
               <li
                 key={bill.id}
-                className="animate-fade-slide-in flex items-center justify-between rounded-xl border border-border bg-card/50 px-4 py-3 text-sm motion-reduce:animate-none"
+                // bg-white/[0.03] — see the income-sources list above for why this replaces
+                // bg-card/50.
+                className="animate-fade-slide-in flex items-center justify-between rounded-xl border border-border bg-white/[0.03] px-4 py-3 text-sm motion-reduce:animate-none"
                 style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
               >
                 <div>
@@ -173,6 +182,8 @@ export function CashFlowClient({
           </ul>
         )}
       </Card>
+
+      <ProjectionList />
     </div>
   );
 }
