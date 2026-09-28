@@ -167,7 +167,14 @@ export function CashFlowClient({
                 <div>
                   <p className="font-medium text-foreground">{bill.name}</p>
                   <p className="text-muted">
-                    Due <span className="font-mono">{new Date(bill.dueDate).toLocaleDateString()}</span>
+                    {/* Explicit 'en-AU' locale (matching lib/utils/currency.ts's convention): Node's
+                        default Intl locale resolves to en-US regardless of server timezone/OS locale,
+                        while the browser resolves its own default — an unpinned toLocaleDateString()
+                        here renders "9/30/2026" server-side vs "30/09/2026" client-side, a real
+                        SSR/client hydration mismatch (confirmed: this component receives bills as
+                        props pre-rendered by the server component, unlike ProjectionList's
+                        client-only self-fetch, so this text is genuinely rendered on both sides). */}
+                    Due <span className="font-mono">{new Date(bill.dueDate).toLocaleDateString('en-AU')}</span>
                     {bill.recurrenceInterval && ` · repeats ${bill.recurrenceInterval.toLowerCase()}`}
                   </p>
                 </div>
