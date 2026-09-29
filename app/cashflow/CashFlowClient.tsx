@@ -8,6 +8,7 @@ import { ProjectionList } from '@/components/cashflow/ProjectionList';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency } from '@/lib/utils/currency';
+import { useRealtimeCycleUpdates } from '@/hooks/useRealtimeCycleUpdates';
 
 interface IncomeSource {
   id: string;
@@ -41,6 +42,10 @@ export function CashFlowClient({
   // Bumped after any action that changes the real cash-flow picture, so ProjectionList refetches
   // instead of showing the projection it loaded on mount until a manual page reload.
   const [projectionRefreshKey, setProjectionRefreshKey] = useState(0);
+
+  // Live sync: another tab, or the AI coach chat, changing this user's bills/income re-triggers the
+  // exact same refetch this component already does after its own local mutations.
+  useRealtimeCycleUpdates(() => setProjectionRefreshKey((k) => k + 1));
 
   async function refreshIncomeSources() {
     const res = await fetch('/api/income-sources');

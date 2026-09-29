@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState, FormEvent } from 'react';
+import { useCallback, useEffect, useState, FormEvent } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { PushSubscribe } from '@/components/pwa/PushSubscribe';
 import { StartCycleForm } from './StartCycleForm';
 import { formatCurrency } from '@/lib/utils/currency';
+import { useRealtimeCycleUpdates } from '@/hooks/useRealtimeCycleUpdates';
 
 interface CoachMessage {
   id: string;
@@ -30,7 +31,7 @@ export function CoachCard() {
   const [cycle, setCycle] = useState<ActiveCycle | null | undefined | 'error'>(undefined);
   const [startError, setStartError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refetchCycle = useCallback(() => {
     fetch('/api/cycles/active')
       .then(async (res) => {
         if (!res.ok) {
@@ -41,6 +42,12 @@ export function CoachCard() {
       })
       .catch(() => setCycle('error'));
   }, []);
+
+  useEffect(() => {
+    refetchCycle();
+  }, [refetchCycle]);
+
+  useRealtimeCycleUpdates(refetchCycle);
 
   async function handleStart(data: { startingAmount: number; endDate: string }) {
     const res = await fetch('/api/cycles', {
