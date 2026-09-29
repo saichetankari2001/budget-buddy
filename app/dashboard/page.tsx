@@ -4,10 +4,12 @@ import { aggregateByCategory, aggregateByMonth } from '@/lib/utils/expenseAggreg
 import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
 import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
 import { Header } from '@/components/ui/Header';
-import { Card } from '@/components/ui/Card';
+import { GlassPanel } from '@/components/ui/GlassPanel';
+import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
 import { CountUpStat } from '@/components/ui/CountUpStat';
 import { BudgetProgress } from '@/components/ui/BudgetProgress';
 import { CoachCard } from '@/components/coach/CoachCard';
+import { DashboardHeroOrb } from '@/components/dashboard/DashboardHeroOrb';
 import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses';
 import { computeGstPaid } from '@/lib/utils/gst';
 
@@ -67,37 +69,39 @@ export default async function DashboardPage() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-4xl px-4 py-8">
+      <main className="relative mx-auto max-w-4xl overflow-hidden px-4 py-8">
+        <AmbientBlobs />
+        <DashboardHeroOrb />
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Dashboard</h1>
 
         <div className="mb-8 grid gap-6 sm:grid-cols-2">
-          <Card>
+          <GlassPanel elevation={2}>
             <p className="text-sm text-muted">Total spent this month</p>
             <CountUpStat value={totalThisMonth} />
-          </Card>
-          <Card>
+          </GlassPanel>
+          <GlassPanel elevation={2}>
             <p className="text-sm text-muted">GST paid this month</p>
             <CountUpStat value={gstPaidThisMonth} />
-          </Card>
+          </GlassPanel>
         </div>
 
         <div className="mb-6 grid gap-6 sm:grid-cols-2">
-          <Card hoverable>
+          <GlassPanel elevation={1} hoverable>
             <h2 className="mb-3 font-heading font-medium text-foreground">
               Spending by category (this month)
             </h2>
             <CategoryPieChart data={categoryTotals} />
-          </Card>
-          <Card hoverable>
+          </GlassPanel>
+          <GlassPanel elevation={1} hoverable>
             <h2 className="mb-3 font-heading font-medium text-foreground">6-month trend</h2>
             <MonthlyTrendChart data={monthlyTotals} />
-          </Card>
+          </GlassPanel>
         </div>
 
-        <Card>
+        <GlassPanel elevation={1}>
           <h2 className="mb-3 font-heading font-medium text-foreground">Budget progress</h2>
           <BudgetProgress items={budgetItems} />
-        </Card>
+        </GlassPanel>
 
         <div className="mt-6">
           <CoachCard />

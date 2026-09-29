@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import * as Ably from 'ably';
+import * as Ably from 'ably/promises';
 import { getCurrentUser } from '@/lib/auth/session';
 import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';

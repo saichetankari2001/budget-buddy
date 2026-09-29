@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const publishMock = vi.fn();
 const channelsGetMock = vi.fn(() => ({ publish: publishMock }));
 
-vi.mock('ably', () => ({
+vi.mock('ably/promises', () => ({
   Rest: vi.fn().mockImplementation(() => ({
     channels: { get: channelsGetMock },
   })),

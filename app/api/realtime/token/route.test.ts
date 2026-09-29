@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const createTokenRequestMock = vi.fn();
 
-vi.mock('ably', () => ({
+vi.mock('ably/promises', () => ({
   Rest: vi.fn().mockImplementation(() => ({
     auth: { createTokenRequest: createTokenRequestMock },
   })),

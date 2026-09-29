@@ -1,4 +1,4 @@
-import * as Ably from 'ably';
+import * as Ably from 'ably/promises';
 
 let restClient: Ably.Rest | null = null;
 

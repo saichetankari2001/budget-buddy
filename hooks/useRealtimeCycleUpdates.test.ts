@@ -6,7 +6,7 @@ const channelsGetMock = vi.fn(() => ({ subscribe: subscribeMock }));
 const authorizeMock = vi.fn();
 const closeMock = vi.fn();
 
-vi.mock('ably', () => ({
+vi.mock('ably/promises', () => ({
   Realtime: vi.fn().mockImplementation(() => ({
     auth: { authorize: authorizeMock },
     channels: { get: channelsGetMock },
@@ -14,7 +14,7 @@ vi.mock('ably', () => ({
   })),
 }));
 
-import * as Ably from 'ably';
+import * as Ably from 'ably/promises';
 import { useRealtimeCycleUpdates } from './useRealtimeCycleUpdates';
 
 describe('useRealtimeCycleUpdates', () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import * as Ably from 'ably';
+import * as Ably from 'ably/promises';
 
 /**
  * Subscribes to this signed-in user's private realtime channel and calls `onUpdate` whenever their
@@ -10,6 +10,12 @@ import * as Ably from 'ably';
  * never accepts a user id, matching this app's existing IDOR-safe convention. `onUpdate` is expected
  * to trigger whatever refetch mechanism the calling component already has (e.g. bumping a
  * `refreshKey` state), not to carry the new data itself.
+ *
+ * Pinned to ably@1.2.x (see package.json) rather than the 2.x line: both the default and the
+ * modular 2.x browser bundles ship a broken transpiled `super(...)` pattern (a genuine upstream
+ * bug in 2.29.0's build tooling) that Next.js's webpack cannot parse when pulled into a client
+ * component — confirmed by reproducing the production build failure against both bundles before
+ * downgrading. 1.2.x's browser bundle predates that regression and builds cleanly.
  */
 export function useRealtimeCycleUpdates(onUpdate: () => void): void {
   const onUpdateRef = useRef(onUpdate);
