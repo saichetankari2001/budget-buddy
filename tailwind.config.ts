@@ -14,6 +14,15 @@ const config: Config = {
         border: 'rgba(139,92,246,0.35)',
         destructive: '#f87171',
         success: '#34d399',
+        // Liquid-glass redesign (2026-09-29): additional glass elevations + a neutral glass edge,
+        // layered alongside the tokens above (which keep their current values/meaning unchanged).
+        // These are raw rgba() strings, exactly like `card`/`border` above — Tailwind's `/<opacity>`
+        // modifier cannot decompose a raw rgba() string (see the documented bg-card/50 bug in
+        // CashFlowClient.tsx/ProjectionList.tsx), so use these bare, never with a `/<number>` suffix.
+        'glass-1': 'rgba(255,255,255,0.06)',
+        'glass-2': 'rgba(255,255,255,0.1)',
+        'glass-3': 'rgba(255,255,255,0.15)',
+        'border-glass': 'rgba(255,255,255,0.18)',
       },
       fontFamily: {
         heading: ['var(--font-heading)', 'sans-serif'],
@@ -28,6 +37,16 @@ const config: Config = {
       },
       animation: {
         'fade-slide-in': 'fadeSlideIn 300ms ease-out both',
+      },
+      backdropBlur: {
+        glass: '24px',
+        hero: '40px',
+      },
+      backdropSaturate: {
+        180: '1.8',
+      },
+      boxShadow: {
+        depth: '0 8px 32px rgba(0,0,0,0.28)',
       },
     },
   },
