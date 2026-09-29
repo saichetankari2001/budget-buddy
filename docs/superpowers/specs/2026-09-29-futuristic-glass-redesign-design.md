@@ -6,7 +6,7 @@
 
 ## 1. Goal
 
-Evolve Budget Buddy's existing "Neon Glass" visual layer into a more advanced, futuristic "liquid glass" aesthetic — depth, motion, frosted glass panels, and two scoped 3D accents — while keeping every page understandable to non-technical users and maintaining the app's existing WCAG 2.1 AA compliance. This is a **visual-layer-only** change: no changes to the database schema, API contracts, or business logic. Every existing feature (auth, expenses, budgets, Money Cycle, AI coach chat, cash-flow projection) keeps working exactly as it does today.
+Evolve Budget Buddy's existing "Neon Glass" visual layer into a more advanced, futuristic "liquid glass" aesthetic — depth, motion, frosted glass panels, and two scoped 3D accents — while keeping every page understandable to non-technical users and maintaining the app's existing WCAG 2.1 AA compliance. This is primarily a **visual-layer change**, plus one scoped backend addition: live data sync (Section 9), so the new animated charts and dashboard orb update in real time as data changes rather than only on page load. No database schema changes, and no change to any existing endpoint's validation, business logic, or response shape — the sync feature is additive (a new publish call alongside each existing write). Every existing feature (auth, expenses, budgets, Money Cycle, AI coach chat, cash-flow projection) keeps working exactly as it does today.
 
 ## 2. Current State
 
@@ -84,6 +84,7 @@ Coach chat UI (`components/coach/CoachCard.tsx`) and all forms (income source, b
 - New test: `CashFlowTrajectoryChart` unit tests (matching the existing pattern from `MonthlyTrendChart.test.tsx`) — renders correctly from a `projection` array fixture, handles the empty/no-cycle state, renders the shortfall marker when `isShortfall` is true.
 - Existing chart/component tests (`CategoryPieChart.test.tsx`, `MonthlyTrendChart.test.tsx`, dashboard/accessibility Playwright specs) get updated for the new glass markup, not rewritten from scratch.
 - Manual/live verification (per this project's established practice of never trusting a report at face value): real browser check of both WebGL accents rendering, both fallback paths (reduced-motion + narrow viewport), and a full-suite axe-core pass on every touched page.
+- New tests for live sync: `app/api/realtime/token/route.ts` returns a token scoped only to the caller's own channel (IDOR check — a token minted for user A must not grant access to user B's channel); each of the five mutation paths' publish call is verified to fire on success and to never throw/fail the mutation if the publish itself errors (e.g. Ably temporarily unreachable). Live two-tab verification (same account open in two browser tabs, mutate in one, confirm the other updates) as part of the manual verification pass.
 
 ## 8. Performance Guardrails
 
@@ -92,13 +93,32 @@ Coach chat UI (`components/coach/CoachCard.tsx`) and all forms (income source, b
 - The ambient CSS blobs (Section 3) use `transform`/`opacity` only, per this app's existing animation performance convention — never animate `width`/`height`/`top`/`left`.
 - Lighthouse performance pass on `dashboard` and `login` (the two heaviest pages) before considering this spec done, comparing against current production baseline.
 
-## 9. Explicitly Out of Scope
+## 9. Backend: Live Data Sync
+
+The dashboard orb and the new cash-flow trajectory chart (Section 5) are meant to feel alive — this section adds the minimum backend needed for that, without pulling in general-purpose infrastructure.
+
+**New dependency:** [Ably](https://ably.com) (`ably` npm package, free-tier account) — a managed realtime pub/sub service. **Not raw Redis pub/sub**: Redis pub/sub still requires something to hold an open subscribing connection to relay messages onward to the browser, and Vercel's serverless functions aren't designed to hold a connection open indefinitely between invocations. Ably (and equivalents like Pusher) solve the actual shape of this problem: the serverless backend does a simple REST call to publish an event, and Ably's own infrastructure maintains the realtime connection to the browser. Free tier: 6M messages/month, 200 concurrent connections — well beyond what a personal-use app needs, and consistent with this project's standing free-tier-only constraint.
+
+**Architecture:**
+- Each authenticated user gets a private Ably channel scoped to their own `userId` (e.g. `user:{userId}:cycle-updates`), authorized via a short-lived token minted by a new `app/api/realtime/token/route.ts` endpoint. That endpoint resolves the caller's own `userId` server-side via `getCurrentUser()` — the same IDOR-safe pattern every existing route in this app already follows; it never trusts a client-supplied user ID, and a token for one user's channel can never be issued to another user.
+- The dashboard and cashflow pages connect directly to Ably using that token via the `ably` client SDK (a new `useRealtimeCycleUpdates(userId)` hook) — no custom SSE proxy route is needed; Ably's client library owns the realtime connection.
+- Every existing mutation that changes cash-flow-relevant data — `markBillPaid` (`lib/bills/actions.ts`), `updateCycleAmount` (`lib/moneyCycle/actions.ts`), income actions (`lib/income/actions.ts`), `POST /api/cycles`, and the four chat tool handlers in `app/api/cycles/chat/route.ts` — publishes a small `{ type: 'cycle-updated' }` event to that user's channel immediately after its existing database write succeeds, via a new thin wrapper `lib/realtime/publish.ts` (`publishCycleUpdate(userId)`). The publish is fire-and-forget: a failed publish is logged and never fails the underlying mutation — the UI already reflects the change locally from the mutation's own response; live sync to *other* open tabs/devices is additive, not load-bearing.
+- On receiving an event, the client re-fetches the existing `GET /api/cycles/active` endpoint — same data, same endpoint, no new read logic — and animates the chart/orb from the old values to the new ones.
+
+**What this changes in existing files:** one additional line (the publish call) in each of the five write paths listed above. No existing validation, business logic, or response shape changes in any of them.
+
+**New files:** `lib/realtime/publish.ts`, `app/api/realtime/token/route.ts`, `hooks/useRealtimeCycleUpdates.ts`.
+
+**Secrets:** `ABLY_API_KEY` is server-only, following this project's existing secret-handling convention (`CRON_SECRET`, the Gemini key) — only the short-lived, per-user scoped token ever reaches the client.
+
+## 10. Explicitly Out of Scope
 
 - **Mobile app** — separate repo, separate spec, built after this one ships and the visual language is proven.
-- **AWS / hosting / infrastructure** — the user has explicitly deferred this to a later, separate conversation.
-- **Any schema, API, or business-logic change** — this spec touches presentation only. `lib/`, `prisma/`, and all `app/api/**/route.ts` files are unmodified except where a component's existing data-fetching call is reused as-is (Section 5).
+- **AWS / hosting / infrastructure** — the user has explicitly deferred this to a later, separate conversation. (Ably is a standalone realtime service, not part of that later infrastructure discussion.)
+- **Database schema changes** — no new tables/columns; `prisma/schema.prisma` is unmodified.
+- **Changes to existing validation, business logic, or response shapes** — every mutation's existing behavior is preserved exactly; live sync (Section 9) is strictly additive.
 - **New pages/screens** — the user explicitly left screen count open; this spec's answer is "the 8 pages that already exist," not a new set of screens invented for the redesign.
 
-## 10. Rollout
+## 11. Rollout
 
 Directly to `main`, no feature flag — matching this project's standing convention across every prior spec.
