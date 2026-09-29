@@ -2,8 +2,10 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/Card';
+import { GlassPanel } from '@/components/ui/GlassPanel';
+import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
 import { Button } from '@/components/ui/Button';
+import { WebGLAccent } from '@/components/three/WebGLAccent';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,8 +37,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto mt-24 max-w-sm px-4">
-      <Card>
+    <main className="relative mx-auto mt-24 flex max-w-4xl items-center justify-center gap-12 overflow-hidden px-4">
+      <AmbientBlobs />
+      <GlassPanel elevation={2} className="w-full max-w-sm">
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Log in</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input
@@ -66,7 +69,13 @@ export default function LoginPage() {
             Sign up
           </a>
         </p>
-      </Card>
+      </GlassPanel>
+      <div className="hidden h-64 w-64 shrink-0 sm:block">
+        <WebGLAccent
+          loadScene={() => import('@/components/three/GlassHeroScene')}
+          alt="Decorative rotating glass torus"
+        />
+      </div>
     </main>
   );
 }
