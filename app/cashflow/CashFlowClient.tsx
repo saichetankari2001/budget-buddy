@@ -5,6 +5,7 @@ import type { RecurrenceInterval, IncomeSourceType } from '@prisma/client';
 import { IncomeSourceForm, CreateIncomeSourceInput } from '@/components/income/IncomeSourceForm';
 import { BillForm, CreateBillInput } from '@/components/bills/BillForm';
 import { ProjectionList } from '@/components/cashflow/ProjectionList';
+import { CashFlowTrajectoryChart } from '@/components/charts/CashFlowTrajectoryChart';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -201,6 +202,7 @@ export function CashFlowClient({
         )}
       </Card>
 
+      <CashFlowTrajectoryChart refreshKey={projectionRefreshKey} />
       <ProjectionList refreshKey={projectionRefreshKey} />
     </div>
   );
