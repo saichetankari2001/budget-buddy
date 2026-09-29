@@ -6,6 +6,9 @@ import { prismaMock } from '@/tests/mocks/prisma';
 
 vi.mock('@/lib/auth/session', () => ({ getCurrentUser: vi.fn() }));
 vi.mock('@/lib/ai/coach', () => ({ generatePlanMessage: vi.fn() }));
+vi.mock('@/lib/realtime/publish', () => ({
+  publishCycleUpdate: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { getCurrentUser } from '@/lib/auth/session';
 import { generatePlanMessage } from '@/lib/ai/coach';
@@ -70,6 +73,37 @@ describe('POST /api/cycles', () => {
     expect(prismaMock.moneyCycle.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: 'user_1', startingAmount: 500 }) })
     );
+  });
+
+  it('publishes a cycle-updated event after successfully creating a cycle', async () => {
+    const { publishCycleUpdate } = await import('@/lib/realtime/publish');
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(null);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    vi.mocked(generatePlanMessage).mockResolvedValue('Your plan is ready.');
+    prismaMock.$transaction.mockImplementation(((callback: (tx: typeof prismaMock) => unknown) =>
+      callback(prismaMock)) as never);
+    prismaMock.moneyCycle.create.mockResolvedValue({
+      id: 'cycle_2',
+      userId: 'user_1',
+      startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-09-10T00:00:00.000Z'),
+      endDate: new Date('2026-09-20T00:00:00.000Z'),
+      status: 'ACTIVE',
+      createdAt: new Date(),
+    } as never);
+    prismaMock.coachMessage.create.mockResolvedValue({
+      id: 'msg_2', cycleId: 'cycle_2', kind: 'PLAN', content: 'Your plan is ready.', createdAt: new Date(),
+    } as never);
+
+    await POST(
+      new NextRequest('http://localhost/api/cycles', {
+        method: 'POST',
+        body: JSON.stringify({ startingAmount: 500, endDate: '2026-09-20T00:00:00.000Z' }),
+      })
+    );
+
+    expect(publishCycleUpdate).toHaveBeenCalledWith('user_1');
   });
 
   it("passes a real shortfallWarning into the plan message when a bill breaks the new cycle's budget", async () => {

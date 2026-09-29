@@ -2,6 +2,7 @@ import { Prisma, RecurrenceInterval } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { computeNextOccurrence } from '@/lib/utils/recurringOccurrences';
 import { createBillActionSchema } from '@/lib/validation/bill.schema';
+import { publishCycleUpdate } from '@/lib/realtime/publish';
 
 type ActionResult<T = object> = ({ success: true } & T) | { success: false; error: string };
 
@@ -46,6 +47,7 @@ export async function addBill(
         categoryId: parsed.data.categoryId ?? undefined,
       },
     });
+    await publishCycleUpdate(userId);
     return { success: true, id: created.id };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -100,5 +102,6 @@ export async function markBillPaid(userId: string, billName: string): Promise<Ac
     return expense.id;
   });
 
+  await publishCycleUpdate(userId);
   return { success: true, expenseId };
 }

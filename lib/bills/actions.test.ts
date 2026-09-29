@@ -3,6 +3,10 @@ import '@/tests/mocks/prisma';
 import { prismaMock } from '@/tests/mocks/prisma';
 import { addBill, markBillPaid } from './actions';
 
+vi.mock('@/lib/realtime/publish', () => ({
+  publishCycleUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('addBill', () => {
   it('creates a recurring bill', async () => {
     prismaMock.bill.create.mockResolvedValue({ id: 'bill_1' } as never);
@@ -77,6 +81,15 @@ describe('addBill', () => {
     expect(result.success).toBe(false);
     expect(prismaMock.bill.create).not.toHaveBeenCalled();
   });
+
+  it('publishes a cycle-updated event after a successful create', async () => {
+    const { publishCycleUpdate } = await import('@/lib/realtime/publish');
+    prismaMock.bill.create.mockResolvedValue({ id: 'bill_1' } as never);
+
+    await addBill('user_1', { name: 'Rent', amount: 800, dueDate: new Date('2026-09-30T00:00:00.000Z') });
+
+    expect(publishCycleUpdate).toHaveBeenCalledWith('user_1');
+  });
 });
 
 describe('markBillPaid', () => {
@@ -119,6 +132,22 @@ describe('markBillPaid', () => {
         data: expect.objectContaining({ paidExpenseId: 'exp_1', dueDate: new Date(2026, 9, 30) }), // Oct 30, 2026
       })
     );
+  });
+
+  it('publishes a cycle-updated event after successfully marking a bill paid', async () => {
+    const { publishCycleUpdate } = await import('@/lib/realtime/publish');
+    prismaMock.bill.findFirst.mockResolvedValue({
+      id: 'bill_1', userId: 'user_1', name: 'Rent', amount: { toString: () => '800' } as never,
+      dueDate: now, recurrenceInterval: 'MONTHLY', categoryId: null, paidExpenseId: null,
+    } as never);
+    prismaMock.category.findFirst.mockResolvedValue(null);
+    prismaMock.category.create.mockResolvedValue({ id: 'cat_bills' } as never);
+    prismaMock.expense.create.mockResolvedValue({ id: 'exp_1' } as never);
+    prismaMock.bill.update.mockResolvedValue({} as never);
+
+    await markBillPaid('user_1', 'Rent');
+
+    expect(publishCycleUpdate).toHaveBeenCalledWith('user_1');
   });
 
   it('marks a one-time bill fully settled with no next due date advance beyond marking it paid', async () => {

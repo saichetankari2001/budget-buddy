@@ -4,6 +4,10 @@ import { prismaMock } from '@/tests/mocks/prisma';
 
 import { updateCycleAmount, cancelCycle } from './actions';
 
+vi.mock('@/lib/realtime/publish', () => ({
+  publishCycleUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('updateCycleAmount', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -58,6 +62,26 @@ describe('updateCycleAmount', () => {
     // the chat route's own CHAT-kind reply is now the sole user-facing message for a chat-initiated change.
     expect(prismaMock.coachMessage.create).not.toHaveBeenCalled();
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('publishes a cycle-updated event after a successful update', async () => {
+    const { publishCycleUpdate } = await import('@/lib/realtime/publish');
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({
+      id: 'cycle_1',
+      userId: 'user_1',
+      startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-09-10T00:00:00.000Z'),
+      endDate: new Date('2026-09-20T00:00:00.000Z'),
+      status: 'ACTIVE',
+      createdAt: new Date(),
+    } as never);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.moneyCycle.update.mockResolvedValue({ id: 'cycle_1' } as never);
+
+    await updateCycleAmount('user_1', 700);
+
+    expect(publishCycleUpdate).toHaveBeenCalledWith('user_1');
   });
 
   it('quotes a safeToSpend that accounts for Bill rows, matching the dashboard instead of a flat average', async () => {

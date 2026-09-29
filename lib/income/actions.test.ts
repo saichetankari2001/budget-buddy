@@ -3,6 +3,10 @@ import '@/tests/mocks/prisma';
 import { prismaMock } from '@/tests/mocks/prisma';
 import { addIncomeSource, logIncomeEntry } from './actions';
 
+vi.mock('@/lib/realtime/publish', () => ({
+  publishCycleUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('addIncomeSource', () => {
   it('creates a FIXED source with amount and recurrence', async () => {
     prismaMock.incomeSource.create.mockResolvedValue({ id: 'inc_1' } as never);
@@ -121,6 +125,19 @@ describe('addIncomeSource', () => {
     expect(result).toEqual({ success: false, error: 'Invalid date' });
     expect(prismaMock.incomeSource.create).not.toHaveBeenCalled();
   });
+
+  it('publishes a cycle-updated event after a successful create', async () => {
+    const { publishCycleUpdate } = await import('@/lib/realtime/publish');
+    prismaMock.incomeSource.create.mockResolvedValue({ id: 'inc_1' } as never);
+
+    await addIncomeSource('user_1', {
+      name: 'Uber',
+      type: 'IRREGULAR',
+      startDate: new Date('2026-09-24T00:00:00.000Z'),
+    });
+
+    expect(publishCycleUpdate).toHaveBeenCalledWith('user_1');
+  });
 });
 
 describe('logIncomeEntry', () => {
@@ -144,5 +161,15 @@ describe('logIncomeEntry', () => {
 
     expect(result).toEqual({ success: false, error: 'No income source named "Nonexistent" found' });
     expect(prismaMock.incomeEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('publishes a cycle-updated event after a successful log', async () => {
+    const { publishCycleUpdate } = await import('@/lib/realtime/publish');
+    prismaMock.incomeSource.findFirst.mockResolvedValue({ id: 'inc_1', userId: 'user_1', name: 'Uber' } as never);
+    prismaMock.incomeEntry.create.mockResolvedValue({ id: 'entry_1' } as never);
+
+    await logIncomeEntry('user_1', { sourceName: 'Uber', amount: 52 });
+
+    expect(publishCycleUpdate).toHaveBeenCalledWith('user_1');
   });
 });

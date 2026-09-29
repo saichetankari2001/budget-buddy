@@ -1,6 +1,7 @@
 import { Prisma, IncomeSourceType, RecurrenceInterval } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { createIncomeSourceActionSchema } from '@/lib/validation/incomeSource.schema';
+import { publishCycleUpdate } from '@/lib/realtime/publish';
 
 type ActionResult<T = object> = ({ success: true } & T) | { success: false; error: string };
 
@@ -28,6 +29,7 @@ export async function addIncomeSource(
         startDate: parsed.data.startDate,
       },
     });
+    await publishCycleUpdate(userId);
     return { success: true, id: created.id };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -49,5 +51,6 @@ export async function logIncomeEntry(
   const created = await prisma.incomeEntry.create({
     data: { incomeSourceId: source.id, amount: input.amount, date: input.date ?? new Date() },
   });
+  await publishCycleUpdate(userId);
   return { success: true, id: created.id };
 }

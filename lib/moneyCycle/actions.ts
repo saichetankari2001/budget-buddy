@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { projectCycle } from '@/lib/moneyCycle/projectCycle';
+import { publishCycleUpdate } from '@/lib/realtime/publish';
 
 type ActionResult<T = object> =
   | ({ success: true } & T)
@@ -39,6 +40,7 @@ export async function updateCycleAmount(
   });
 
   await prisma.moneyCycle.update({ where: { id: cycle.id }, data: { startingAmount: newAmount } });
+  await publishCycleUpdate(userId);
 
   return { success: true, remainingAmount, daysRemaining, safeToSpend };
 }

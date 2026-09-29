@@ -7,6 +7,7 @@ import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { generatePlanMessage } from '@/lib/ai/coach';
 import { projectCycle } from '@/lib/moneyCycle/projectCycle';
+import { publishCycleUpdate } from '@/lib/realtime/publish';
 
 const ACTIVE_CYCLE_MESSAGE = 'You already have an active cycle. It will complete on its own at its end date.';
 
@@ -66,6 +67,8 @@ export async function POST(request: NextRequest) {
       throw error;
     }
     const { cycle, message } = result;
+
+    await publishCycleUpdate(user.userId);
 
     return NextResponse.json(
       {
