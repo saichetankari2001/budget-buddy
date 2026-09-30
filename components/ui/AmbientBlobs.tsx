@@ -18,10 +18,16 @@ interface Blob {
 // threshold. These lower values were chosen to keep every text token this app uses (not just the
 // one axe-core happened to catch) comfortably clear of that line on every elevation, while still
 // being visibly present as ambient color.
+// `top` is a fixed pixel offset, not a percentage: a percentage `top` is relative to this
+// component's absolutely-positioned parent (`main`), whose height changes as async content below
+// (e.g. CoachCard's own data fetch) finishes loading and mounts more content. A real Lighthouse
+// audit caught the blob visibly shifting position as `main` grew — a genuine CLS regression
+// (0.154, "needs improvement") — traced to exactly this. `left` stays a percentage: it's relative
+// to width, which this app's fixed-max-width containers don't change asynchronously.
 const BLOBS: Blob[] = [
-  { color: 'rgba(139,92,246,0.1)', size: 420, top: '-10%', left: '5%', duration: 22 },
-  { color: 'rgba(34,211,238,0.07)', size: 360, top: '30%', left: '60%', duration: 26 },
-  { color: 'rgba(139,92,246,0.06)', size: 300, top: '65%', left: '15%', duration: 30 },
+  { color: 'rgba(139,92,246,0.1)', size: 420, top: '-40px', left: '5%', duration: 22 },
+  { color: 'rgba(34,211,238,0.07)', size: 360, top: '220px', left: '60%', duration: 26 },
+  { color: 'rgba(139,92,246,0.06)', size: 300, top: '480px', left: '15%', duration: 30 },
 ];
 
 /**
