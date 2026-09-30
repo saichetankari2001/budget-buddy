@@ -45,8 +45,17 @@ export function CashFlowClient({
   const [projectionRefreshKey, setProjectionRefreshKey] = useState(0);
 
   // Live sync: another tab, or the AI coach chat, changing this user's bills/income re-triggers the
-  // exact same refetch this component already does after its own local mutations.
-  useRealtimeCycleUpdates(() => setProjectionRefreshKey((k) => k + 1));
+  // exact same refetches this component already does after its own local mutations. A real live
+  // two-tab test caught the original version of this only bumping projectionRefreshKey — the Ably
+  // message genuinely arrived, but the "Income sources"/"Bills" list sections below render from
+  // their own `incomeSources`/`bills` state, which nothing here was refreshing, so a bill added in
+  // one tab never appeared in the other's visible bill list, only (invisibly, untested) in the
+  // projection chart/day list that refreshKey actually drives.
+  useRealtimeCycleUpdates(() => {
+    refreshIncomeSources();
+    refreshBills();
+    setProjectionRefreshKey((k) => k + 1);
+  });
 
   async function refreshIncomeSources() {
     const res = await fetch('/api/income-sources');
