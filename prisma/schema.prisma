@@ -56,6 +56,7 @@ model Category {
   expenses  Expense[]
   bills     Bill[]
   budgets   Budget[]
+  cycleBudgets CycleCategoryBudget[]
 
   @@unique([userId, name])
 }
@@ -102,6 +103,7 @@ model MoneyCycle {
   status         CycleStatus    @default(ACTIVE)
   createdAt      DateTime       @default(now())
   messages       CoachMessage[]
+  categoryBudgets CycleCategoryBudget[]
 
   @@index([userId, status])
 }
@@ -169,4 +171,20 @@ model Bill {
 
   @@unique([userId, name])
   @@index([userId, dueDate])
+}
+
+model CycleCategoryBudget {
+  id                String     @id @default(cuid())
+  cycleId           String
+  cycle             MoneyCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  categoryId        String?
+  category          Category?  @relation(fields: [categoryId], references: [id])
+  categoryName      String
+  categoryColor     String
+  recommendedAmount Decimal    @db.Decimal(10, 2)
+  notifiedAt80      DateTime?
+  notifiedAt100     DateTime?
+  createdAt         DateTime   @default(now())
+
+  @@index([cycleId])
 }
