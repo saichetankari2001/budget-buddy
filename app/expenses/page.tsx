@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth/session';
 import { ExpenseFilters } from '@/components/expenses/ExpenseFilters';
 import { ExpensesClient } from './ExpensesClient';
 import { Header } from '@/components/ui/Header';
+import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
 
 export default async function ExpensesPage({
   searchParams,
@@ -44,7 +45,8 @@ export default async function ExpensesPage({
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="relative mx-auto max-w-3xl overflow-hidden px-4 py-8">
+        <AmbientBlobs />
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Expenses</h1>
         <ExpenseFilters categories={categories} />
         <ExpensesClient categories={categories} initialExpenses={serialized} />

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Card } from '@/components/ui/Card';
+import { GlassPanel } from '@/components/ui/GlassPanel';
 import { formatCurrency } from '@/lib/utils/currency';
 
 interface ProjectionDayEvent {
@@ -55,16 +55,16 @@ export function ProjectionList({ refreshKey = 0 }: { refreshKey?: number }) {
 
   if (cycle === 'error') {
     return (
-      <Card>
+      <GlassPanel elevation={1}>
         <h2 className="mb-3 font-heading text-lg font-semibold text-foreground">Projection</h2>
         <p className="text-sm text-muted">Couldn&apos;t load your cash-flow projection right now. Try refreshing.</p>
-      </Card>
+      </GlassPanel>
     );
   }
 
   if (cycle === null) {
     return (
-      <Card>
+      <GlassPanel elevation={1}>
         <h2 className="mb-3 font-heading text-lg font-semibold text-foreground">Projection</h2>
         <p className="text-sm text-muted">
           Start a Money Cycle on the{' '}
@@ -73,7 +73,7 @@ export function ProjectionList({ refreshKey = 0 }: { refreshKey?: number }) {
           </Link>{' '}
           to see your day-by-day cash-flow projection.
         </p>
-      </Card>
+      </GlassPanel>
     );
   }
 
@@ -88,7 +88,7 @@ export function ProjectionList({ refreshKey = 0 }: { refreshKey?: number }) {
   );
 
   return (
-    <Card>
+    <GlassPanel elevation={1} hoverable>
       <h2 className="mb-4 font-heading text-lg font-semibold text-foreground">Projection</h2>
       {projection.length === 0 ? (
         <p className="text-sm text-muted">No projection data for this cycle yet.</p>
@@ -132,6 +132,6 @@ export function ProjectionList({ refreshKey = 0 }: { refreshKey?: number }) {
           })}
         </ul>
       )}
-    </Card>
+    </GlassPanel>
   );
 }

@@ -1,9 +1,9 @@
-import { Card } from '@/components/ui/Card';
+import { GlassPanel } from '@/components/ui/GlassPanel';
 
 export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-12">
-      <Card>
+      <GlassPanel elevation={1}>
         <h1 className="mb-2 font-heading text-2xl font-semibold text-foreground">Privacy Policy</h1>
         <p className="mb-6 text-sm text-muted">Last updated: 28 August 2026</p>
 
@@ -78,7 +78,7 @@ export default function PrivacyPage() {
             </p>
           </section>
         </div>
-      </Card>
+      </GlassPanel>
     </main>
   );
 }

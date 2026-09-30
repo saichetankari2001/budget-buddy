@@ -6,7 +6,7 @@ import { IncomeSourceForm, CreateIncomeSourceInput } from '@/components/income/I
 import { BillForm, CreateBillInput } from '@/components/bills/BillForm';
 import { ProjectionList } from '@/components/cashflow/ProjectionList';
 import { CashFlowTrajectoryChart } from '@/components/charts/CashFlowTrajectoryChart';
-import { Card } from '@/components/ui/Card';
+import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useRealtimeCycleUpdates } from '@/hooks/useRealtimeCycleUpdates';
@@ -103,7 +103,7 @@ export function CashFlowClient({
 
   return (
     <div className="flex flex-col gap-6">
-      <Card>
+      <GlassPanel elevation={1}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-heading text-lg font-semibold text-foreground">Income sources</h2>
           <Button variant="secondary" onClick={() => setShowIncomeForm((v) => !v)}>
@@ -148,9 +148,9 @@ export function CashFlowClient({
             ))}
           </ul>
         )}
-      </Card>
+      </GlassPanel>
 
-      <Card>
+      <GlassPanel elevation={1}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-heading text-lg font-semibold text-foreground">Bills</h2>
           <Button variant="secondary" onClick={() => setShowBillForm((v) => !v)}>
@@ -200,7 +200,7 @@ export function CashFlowClient({
             ))}
           </ul>
         )}
-      </Card>
+      </GlassPanel>
 
       <CashFlowTrajectoryChart refreshKey={projectionRefreshKey} />
       <ProjectionList refreshKey={projectionRefreshKey} />

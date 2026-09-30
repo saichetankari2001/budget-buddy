@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, FormEvent } from 'react';
-import { Card } from '@/components/ui/Card';
+import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/Button';
 import { PushSubscribe } from '@/components/pwa/PushSubscribe';
 import { StartCycleForm } from './StartCycleForm';
@@ -126,24 +126,24 @@ export function CoachCard() {
 
   if (cycle === 'error') {
     return (
-      <Card>
+      <GlassPanel elevation={1}>
         <p className="text-sm text-muted">Couldn&apos;t load your Money Coach right now. Try refreshing.</p>
-      </Card>
+      </GlassPanel>
     );
   }
 
   if (cycle === null) {
     return (
-      <Card>
+      <GlassPanel elevation={1}>
         <h2 className="mb-3 font-heading font-medium text-foreground">Money Coach</h2>
         <StartCycleForm onSubmit={handleStart} />
         {startError && <p className="mt-2 text-sm text-destructive">{startError}</p>}
-      </Card>
+      </GlassPanel>
     );
   }
 
   return (
-    <Card>
+    <GlassPanel elevation={1}>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-heading font-medium text-foreground">Money Coach</h2>
         <PushSubscribe />
@@ -201,6 +201,6 @@ export function CoachCard() {
         </Button>
       </form>
       {chatError && <p className="mt-2 text-sm text-destructive">{chatError}</p>}
-    </Card>
+    </GlassPanel>
   );
 }

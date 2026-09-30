@@ -4,7 +4,7 @@ import { useState, ChangeEvent } from 'react';
 import { PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import type { RecurrenceInterval } from '@prisma/client';
 import { ExpenseForm } from '@/components/expenses/ExpenseForm';
-import { Card } from '@/components/ui/Card';
+import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { CreateExpenseInput } from '@/lib/validation/expense.schema';
@@ -141,7 +141,7 @@ export function ExpensesClient({
   return (
     <div>
       {importSummary && (
-        <Card className="mb-4 text-sm">
+        <GlassPanel elevation={1} className="mb-4 text-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="font-medium text-foreground">
@@ -170,7 +170,7 @@ export function ExpensesClient({
               &times;
             </button>
           </div>
-        </Card>
+        </GlassPanel>
       )}
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -190,22 +190,22 @@ export function ExpensesClient({
       </div>
 
       {showAddForm && (
-        <Card className="mb-6">
+        <GlassPanel elevation={1} className="mb-6">
           <ExpenseForm categories={categories} onSubmit={handleCreate} />
-        </Card>
+        </GlassPanel>
       )}
 
       {expenses.length === 0 && (
-        <Card>
+        <GlassPanel elevation={1}>
           <p className="text-sm text-muted">No expenses match these filters.</p>
-        </Card>
+        </GlassPanel>
       )}
 
       <ul className="flex flex-col gap-2">
         {expenses.map((expense, index) =>
           editingId === expense.id ? (
             <li key={expense.id}>
-              <Card>
+              <GlassPanel elevation={1}>
                 <ExpenseForm
                   categories={categories}
                   initialValues={{
@@ -218,7 +218,7 @@ export function ExpensesClient({
                   }}
                   onSubmit={(data) => handleUpdate(expense.id, data)}
                 />
-              </Card>
+              </GlassPanel>
             </li>
           ) : (
             <li
@@ -226,7 +226,7 @@ export function ExpensesClient({
               className="animate-fade-slide-in motion-reduce:animate-none"
               style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
             >
-              <Card className="flex items-center justify-between text-sm">
+              <GlassPanel elevation={1} className="flex items-center justify-between text-sm">
                 <div>
                   <p className="flex items-center gap-1 font-medium text-foreground">
                     {expense.description}
@@ -248,7 +248,7 @@ export function ExpensesClient({
                     onClick={() => handleDelete(expense.id)}
                   />
                 </div>
-              </Card>
+              </GlassPanel>
             </li>
           )
         )}
