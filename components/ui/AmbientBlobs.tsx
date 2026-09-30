@@ -10,10 +10,18 @@ interface Blob {
   duration: number;
 }
 
+// Kept dim deliberately: a GlassPanel sitting over a blob composites its color into the panel's
+// effective background (that's the intended "liquid glass" look). axe-core caught this twice —
+// first the original 0.35/0.25/0.2 pushing text-muted's contrast on elevation-1 panels to 4.42:1,
+// then, after dimming to 0.16/0.12/0.1, text-primary-hover's contrast on the stronger elevation-2
+// panel (used on login/signup) still only reaching 4.34:1 — both just under the 4.5:1 WCAG AA
+// threshold. These lower values were chosen to keep every text token this app uses (not just the
+// one axe-core happened to catch) comfortably clear of that line on every elevation, while still
+// being visibly present as ambient color.
 const BLOBS: Blob[] = [
-  { color: 'rgba(139,92,246,0.35)', size: 420, top: '-10%', left: '5%', duration: 22 },
-  { color: 'rgba(34,211,238,0.25)', size: 360, top: '30%', left: '60%', duration: 26 },
-  { color: 'rgba(139,92,246,0.2)', size: 300, top: '65%', left: '15%', duration: 30 },
+  { color: 'rgba(139,92,246,0.1)', size: 420, top: '-10%', left: '5%', duration: 22 },
+  { color: 'rgba(34,211,238,0.07)', size: 360, top: '30%', left: '60%', duration: 26 },
+  { color: 'rgba(139,92,246,0.06)', size: 300, top: '65%', left: '15%', duration: 30 },
 ];
 
 /**

@@ -1,7 +1,16 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { forceReducedMotion } from './helpers/reducedMotion';
 
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+
+// Every test in this file scans for WCAG violations, so every test needs GlassPanel's entrance
+// animation (opacity 0 -> 1) settled before scanning — see e2e/helpers/reducedMotion.ts for why
+// page.emulateMedia({ reducedMotion: 'reduce' }) alone isn't sufficient for this. Applied globally
+// rather than per-test since it's a scan precondition, not something specific tests opt into.
+test.beforeEach(async ({ page }) => {
+  await forceReducedMotion(page);
+});
 
 async function signUp(page: import('@playwright/test').Page, emailPrefix: string) {
   const email = `${emailPrefix}-${Date.now()}@example.com`;

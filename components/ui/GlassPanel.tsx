@@ -24,6 +24,18 @@ const TILT_RANGE_DEG = 4;
  * `Card` component, adding depth (blur/saturate/shadow), a subtle pointer-tracked 3D tilt on hover,
  * and a spring entrance. Every effect above the static glass look is disabled under
  * prefers-reduced-motion, matching this app's existing accessibility bar.
+ *
+ * `initial` and the tilt `style` prop are deliberately NOT conditioned on `prefersReducedMotion`:
+ * framer-motion's useReducedMotion() reads the real matchMedia value synchronously on the client's
+ * first render, but always returns false/null during SSR (no window there) — branching the inline
+ * style those props produce on that value made the server-rendered markup disagree with what a real
+ * reduced-motion client renders on its first paint, a genuine hydration mismatch for any real user
+ * with that OS setting (confirmed by reproducing "Hydration failed" page errors, not just an
+ * inline-vs-server style warning). `initial`/the tilt style stay unconditional so server and client
+ * always agree; reduced motion is instead honored via `transition` (duration 0 — animates through
+ * the same states, so nothing to hydrate-mismatch on, just imperceptibly fast) and by gating the
+ * pointer handler itself so the tilt never actually moves for a reduced-motion user, even though the
+ * style attribute that *would* hold a live rotation is present in both renders.
  */
 export function GlassPanel({
   elevation = 1,
@@ -42,10 +54,8 @@ export function GlassPanel({
   const rotateX = useTransform(springY, [0, 1], [TILT_RANGE_DEG, -TILT_RANGE_DEG]);
   const rotateY = useTransform(springX, [0, 1], [-TILT_RANGE_DEG, TILT_RANGE_DEG]);
 
-  const tiltEnabled = hoverable && !prefersReducedMotion;
-
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    if (!tiltEnabled || !ref.current) return;
+    if (!hoverable || prefersReducedMotion || !ref.current) return;
     const bounds = ref.current.getBoundingClientRect();
     pointerX.set((event.clientX - bounds.left) / bounds.width);
     pointerY.set((event.clientY - bounds.top) / bounds.height);
@@ -64,11 +74,11 @@ export function GlassPanel({
       {...rest}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
-      whileTap={tiltEnabled ? { scale: 0.97 } : undefined}
-      initial={prefersReducedMotion ? false : { opacity: 0, y: 8, scale: 0.98 }}
+      whileTap={hoverable && !prefersReducedMotion ? { scale: 0.97 } : undefined}
+      initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: 'spring', damping: 20, stiffness: 90 }}
-      style={tiltEnabled ? { rotateX, rotateY, transformPerspective: 800 } : undefined}
+      transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', damping: 20, stiffness: 90 }}
+      style={hoverable ? { rotateX, rotateY, transformPerspective: 800 } : undefined}
     >
       {children}
     </motion.div>

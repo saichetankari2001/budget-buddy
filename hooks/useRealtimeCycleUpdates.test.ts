@@ -43,4 +43,20 @@ describe('useRealtimeCycleUpdates', () => {
     unmount();
     expect(closeMock).toHaveBeenCalled();
   });
+
+  it('never lets an auth failure become an unhandled rejection', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    authorizeMock.mockRejectedValue(new Error('ABLY_API_KEY is not configured'));
+
+    renderHook(() => useRealtimeCycleUpdates(() => {}));
+
+    await waitFor(() => {
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to establish realtime cycle-update subscription:',
+        expect.any(Error)
+      );
+    });
+
+    consoleErrorSpy.mockRestore();
+  });
 });
