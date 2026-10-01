@@ -7,6 +7,10 @@ vi.mock('@/lib/auth/session', () => ({
   getCurrentUser: vi.fn(),
 }));
 
+vi.mock('@/lib/moneyCycle/categoryThresholdNotifications', () => ({
+  checkCategoryThresholdAndNotify: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { getCurrentUser } from '@/lib/auth/session';
 import { GET, POST } from './route';
 
@@ -182,5 +186,28 @@ describe('POST /api/expenses', () => {
         recurrenceInterval: 'MONTHLY',
       },
     });
+  });
+
+  it('checks the category threshold after successfully creating an expense', async () => {
+    const { checkCategoryThresholdAndNotify } = await import('@/lib/moneyCycle/categoryThresholdNotifications');
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.category.findFirst.mockResolvedValue({
+      id: 'cat_1', userId: 'user_1', name: 'Food', color: '#f97316', createdAt: new Date(),
+    });
+    prismaMock.expense.create.mockResolvedValue({
+      id: 'exp_1', userId: 'user_1', categoryId: 'cat_1', amount: { toString: () => '42.50' } as never,
+      description: 'Groceries', date: new Date('2026-08-01T00:00:00.000Z'), createdAt: new Date(),
+    });
+
+    await POST(
+      new NextRequest('http://localhost/api/expenses', {
+        method: 'POST',
+        body: JSON.stringify({
+          amount: 42.5, description: 'Groceries', categoryId: 'cat_1', date: '2026-08-01T00:00:00.000Z',
+        }),
+      })
+    );
+
+    expect(checkCategoryThresholdAndNotify).toHaveBeenCalledWith('user_1', 'cat_1');
   });
 });

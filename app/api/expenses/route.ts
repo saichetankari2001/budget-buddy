@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth/session';
 import { createExpenseSchema, expenseFiltersSchema } from '@/lib/validation/expense.schema';
 import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
+import { checkCategoryThresholdAndNotify } from '@/lib/moneyCycle/categoryThresholdNotifications';
 import { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
@@ -67,6 +68,8 @@ export async function POST(request: NextRequest) {
         ...(recurrenceInterval !== undefined ? { recurrenceInterval } : {}),
       },
     });
+
+    await checkCategoryThresholdAndNotify(user.userId, categoryId);
 
     return NextResponse.json({ ...expense, amount: Number(expense.amount) }, { status: 201 });
   } catch (error) {
