@@ -31,17 +31,27 @@ export function computeCategoryRecommendation(
   const totalHistory = history.reduce((sum, h) => sum + h.total, 0);
 
   if (totalHistory === 0) {
+    const share = pool / history.length;
     const tracked = history.slice(0, MAX_TRACKED_CATEGORIES);
-    const share = pool / tracked.length;
-    return distributeRoundingRemainder(
-      tracked.map((h) => ({
-        categoryId: h.categoryId,
-        categoryName: h.categoryName,
-        color: h.color,
-        recommendedAmount: round2(share),
-      })),
-      pool
-    );
+    const rest = history.slice(MAX_TRACKED_CATEGORIES);
+
+    const entries: CategoryRecommendation[] = tracked.map((h) => ({
+      categoryId: h.categoryId,
+      categoryName: h.categoryName,
+      color: h.color,
+      recommendedAmount: round2(share),
+    }));
+
+    if (rest.length > 0) {
+      entries.push({
+        categoryId: null,
+        categoryName: OTHER_LABEL,
+        color: OTHER_COLOR,
+        recommendedAmount: round2(share * rest.length),
+      });
+    }
+
+    return distributeRoundingRemainder(entries, pool);
   }
 
   const sorted = [...history].sort((a, b) => b.total - a.total);
