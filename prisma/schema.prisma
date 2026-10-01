@@ -32,10 +32,10 @@ enum IncomeSourceType {
 }
 
 model User {
-  id                String            @id @default(cuid())
-  email             String            @unique
+  id                String             @id @default(cuid())
+  email             String             @unique
   passwordHash      String
-  createdAt         DateTime          @default(now())
+  createdAt         DateTime           @default(now())
   categories        Category[]
   expenses          Expense[]
   incomeSources     IncomeSource[]
@@ -46,16 +46,16 @@ model User {
 }
 
 model Category {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  color     String
-  isGstFree Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  expenses  Expense[]
-  bills     Bill[]
-  budgets   Budget[]
+  id           String                @id @default(cuid())
+  userId       String
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  color        String
+  isGstFree    Boolean               @default(false)
+  createdAt    DateTime              @default(now())
+  expenses     Expense[]
+  bills        Bill[]
+  budgets      Budget[]
   cycleBudgets CycleCategoryBudget[]
 
   @@unique([userId, name])
@@ -94,15 +94,15 @@ model Budget {
 }
 
 model MoneyCycle {
-  id             String         @id @default(cuid())
-  userId         String
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  startingAmount Decimal        @db.Decimal(10, 2)
-  startDate      DateTime
-  endDate        DateTime
-  status         CycleStatus    @default(ACTIVE)
-  createdAt      DateTime       @default(now())
-  messages       CoachMessage[]
+  id              String                @id @default(cuid())
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startingAmount  Decimal               @db.Decimal(10, 2)
+  startDate       DateTime
+  endDate         DateTime
+  status          CycleStatus           @default(ACTIVE)
+  createdAt       DateTime              @default(now())
+  messages        CoachMessage[]
   categoryBudgets CycleCategoryBudget[]
 
   @@index([userId, status])
