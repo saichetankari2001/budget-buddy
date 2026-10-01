@@ -19,7 +19,12 @@ export async function GET() {
 
     const budgetRows = await prisma.cycleCategoryBudget.findMany({ where: { cycleId: cycle.id } });
     if (budgetRows.length === 0) {
-      return NextResponse.json(null);
+      // Distinct from "no active cycle" above: there IS a cycle, it just has no recommendation
+      // rows because the user had zero spending history when it was created (a brand-new
+      // signup, most commonly). SpendingBreakdownCard already renders a "log a few expenses
+      // first" message for exactly this shape — returning `null` here previously made the card
+      // disappear entirely instead, which left that message dead code.
+      return NextResponse.json({ categories: [], hasAnyExpenseThisCycle: false });
     }
 
     const trackedCategoryIds = budgetRows.filter((r) => r.categoryId !== null).map((r) => r.categoryId as string);

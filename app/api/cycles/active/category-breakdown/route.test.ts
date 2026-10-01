@@ -29,13 +29,16 @@ describe('GET /api/cycles/active/category-breakdown', () => {
     expect(await res.json()).toBeNull();
   });
 
-  it('returns null when the cycle has no recommendation rows (zero-categories fallback)', async () => {
+  it('returns an empty categories list when the cycle has no recommendation rows (zero-history fallback)', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
     prismaMock.moneyCycle.findFirst.mockResolvedValue(activeCycle as never);
     prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]);
 
     const res = await GET();
-    expect(await res.json()).toBeNull();
+    // Distinct from the "no active cycle" case above (which returns null so the card renders
+    // nothing): here a cycle exists but had zero spending history to recommend from, so the
+    // card should render its "log a few expenses first" empty state instead of disappearing.
+    expect(await res.json()).toEqual({ categories: [], hasAnyExpenseThisCycle: false });
   });
 
   it('returns categories with recommended, actual, and historical amounts, and flags whether any expense exists this cycle', async () => {
