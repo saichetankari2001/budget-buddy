@@ -1,0 +1,47 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth/session';
+import { AppError } from '@/lib/errors/AppError';
+import { handleRouteError } from '@/lib/errors/handleRouteError';
+import { computeCategoryTotalsForWindow } from '@/lib/moneyCycle/categoryTotals';
+
+export async function GET() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      throw new AppError(401, 'Not authenticated');
+    }
+
+    const cycle = await prisma.moneyCycle.findFirst({ where: { userId: user.userId, status: 'ACTIVE' } });
+    if (!cycle) {
+      return NextResponse.json(null);
+    }
+
+    const budgetRows = await prisma.cycleCategoryBudget.findMany({ where: { cycleId: cycle.id } });
+    if (budgetRows.length === 0) {
+      return NextResponse.json(null);
+    }
+
+    const trackedCategoryIds = budgetRows.filter((r) => r.categoryId !== null).map((r) => r.categoryId as string);
+    const now = new Date();
+    const [actuals, historical] = await Promise.all([
+      computeCategoryTotalsForWindow(user.userId, { gte: cycle.startDate, lte: now }, trackedCategoryIds),
+      computeCategoryTotalsForWindow(user.userId, {}, trackedCategoryIds),
+    ]);
+
+    const hasAnyExpenseThisCycle = actuals.some((a) => a.actual > 0);
+
+    const categories = budgetRows.map((row) => ({
+      categoryId: row.categoryId,
+      categoryName: row.categoryName,
+      color: row.categoryColor,
+      recommendedAmount: Number(row.recommendedAmount),
+      actualAmount: actuals.find((a) => a.categoryId === row.categoryId)?.actual ?? 0,
+      historicalAmount: historical.find((a) => a.categoryId === row.categoryId)?.actual ?? 0,
+    }));
+
+    return NextResponse.json({ categories, hasAnyExpenseThisCycle });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
