@@ -26,6 +26,8 @@ describe('POST /api/cycles', () => {
     prismaMock.bill.findMany.mockResolvedValue([]);
     prismaMock.incomeSource.findMany.mockResolvedValue([]);
     prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.expense.findMany.mockResolvedValue([]); // no all-time history by default
+    prismaMock.cycleCategoryBudget.createMany.mockResolvedValue({ count: 0 });
   });
 
   afterEach(() => {
@@ -206,5 +208,42 @@ describe('POST /api/cycles', () => {
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toBe('You already have an active cycle. It will complete on its own at its end date.');
+  });
+
+  it('creates CycleCategoryBudget rows from all-time category history inside the same transaction', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(null);
+    vi.mocked(generatePlanMessage).mockResolvedValue('Your plan is ready.');
+    prismaMock.expense.findMany.mockResolvedValue([
+      {
+        id: 'exp_1', userId: 'user_1', categoryId: 'cat_1',
+        amount: { toString: () => '100.00' } as never, description: 'Groceries',
+        date: new Date('2026-08-01T00:00:00.000Z'), createdAt: new Date(),
+        category: { id: 'cat_1', userId: 'user_1', name: 'Food', color: '#f97316', isGstFree: false, createdAt: new Date() },
+      },
+    ] as never);
+    prismaMock.$transaction.mockImplementation(((callback: (tx: typeof prismaMock) => unknown) =>
+      callback(prismaMock)) as never);
+    prismaMock.moneyCycle.create.mockResolvedValue({
+      id: 'cycle_1', userId: 'user_1', startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-09-10T00:00:00.000Z'), endDate: new Date('2026-09-20T00:00:00.000Z'),
+      status: 'ACTIVE', createdAt: new Date(),
+    } as never);
+    prismaMock.coachMessage.create.mockResolvedValue({
+      id: 'msg_1', cycleId: 'cycle_1', kind: 'PLAN', content: 'Your plan is ready.', createdAt: new Date(),
+    } as never);
+
+    await POST(
+      new NextRequest('http://localhost/api/cycles', {
+        method: 'POST',
+        body: JSON.stringify({ startingAmount: 500, endDate: '2026-09-20T00:00:00.000Z' }),
+      })
+    );
+
+    expect(prismaMock.cycleCategoryBudget.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ cycleId: 'cycle_1', categoryId: 'cat_1', categoryName: 'Food', recommendedAmount: 500 }),
+      ],
+    });
   });
 });

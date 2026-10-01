@@ -8,6 +8,8 @@ import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { generatePlanMessage } from '@/lib/ai/coach';
 import { projectCycle } from '@/lib/moneyCycle/projectCycle';
 import { publishCycleUpdate } from '@/lib/realtime/publish';
+import { aggregateByCategory } from '@/lib/utils/expenseAggregation';
+import { computeCategoryRecommendation } from '@/lib/moneyCycle/computeCategoryRecommendation';
 
 const ACTIVE_CYCLE_MESSAGE = 'You already have an active cycle. It will complete on its own at its end date.';
 
@@ -41,6 +43,16 @@ export async function POST(request: NextRequest) {
       startDate
     );
 
+    const discretionaryPool = Math.max(remainingAmount - committedSpend, 0);
+    const allTimeExpenses = await prisma.expense.findMany({
+      where: { userId: user.userId },
+      include: { category: true },
+    });
+    const categoryHistory = aggregateByCategory(
+      allTimeExpenses.map((e) => ({ amount: Number(e.amount), date: e.date, category: e.category }))
+    );
+    const recommendation = computeCategoryRecommendation(categoryHistory, discretionaryPool);
+
     const planMessageText = await generatePlanMessage({
       startingAmount,
       committedSpend,
@@ -55,6 +67,17 @@ export async function POST(request: NextRequest) {
         const createdCycle = await tx.moneyCycle.create({
           data: { userId: user.userId, startingAmount, startDate, endDate: parsedEndDate },
         });
+        if (recommendation.length > 0) {
+          await tx.cycleCategoryBudget.createMany({
+            data: recommendation.map((r) => ({
+              cycleId: createdCycle.id,
+              categoryId: r.categoryId,
+              categoryName: r.categoryName,
+              categoryColor: r.color,
+              recommendedAmount: r.recommendedAmount,
+            })),
+          });
+        }
         const createdMessage = await tx.coachMessage.create({
           data: { cycleId: createdCycle.id, kind: 'PLAN', content: planMessageText },
         });
