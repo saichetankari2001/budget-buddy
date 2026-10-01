@@ -51,6 +51,21 @@ test('dashboard with an active money cycle has no WCAG 2.1 A/AA violations', asy
   expect(results.violations).toEqual([]);
 });
 
+test('dashboard with a spending breakdown shows the recommendation table and has no WCAG 2.1 A/AA violations', async ({
+  page,
+}) => {
+  await signUp(page, 'a11y-spending-breakdown');
+  await page.getByLabel(/how much do you have/i).fill('500');
+  await page.getByLabel('Until when', { exact: true }).fill('2026-12-31');
+  await page.getByRole('button', { name: /^start$/i }).click();
+  await expect(page.getByText('Days left')).toBeVisible({ timeout: 15000 });
+
+  await expect(page.getByTestId('spending-breakdown-card')).toBeVisible({ timeout: 10000 });
+
+  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test('expenses page has no WCAG 2.1 A/AA violations', async ({ page }) => {
   await signUp(page, 'a11y-expenses');
   await page.goto('/expenses');

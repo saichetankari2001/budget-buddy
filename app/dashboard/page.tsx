@@ -9,6 +9,7 @@ import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
 import { CountUpStat } from '@/components/ui/CountUpStat';
 import { BudgetProgress } from '@/components/ui/BudgetProgress';
 import { CoachCard } from '@/components/coach/CoachCard';
+import { SpendingBreakdownCard } from '@/components/dashboard/SpendingBreakdownCard';
 import { DashboardHeroOrb } from '@/components/dashboard/DashboardHeroOrb';
 import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses';
 import { computeGstPaid } from '@/lib/utils/gst';
@@ -105,6 +106,10 @@ export default async function DashboardPage() {
 
         <div className="mt-6">
           <CoachCard />
+        </div>
+
+        <div className="mt-6">
+          <SpendingBreakdownCard />
         </div>
       </main>
     </>
