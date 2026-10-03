@@ -46,7 +46,7 @@ export function SpendingBreakdownCard() {
 
   if (data.categories.length === 0) {
     return (
-      <GlassPanel elevation={1} data-testid="spending-breakdown-card">
+      <GlassPanel elevation={2} hoverable data-testid="spending-breakdown-card">
         <h2 className="mb-3 font-heading font-medium text-foreground">Spending breakdown</h2>
         <p className="text-sm text-muted">
           Log a few expenses first — recommendations need some spending history to work from.
@@ -69,7 +69,7 @@ export function SpendingBreakdownCard() {
   }));
 
   return (
-    <GlassPanel elevation={1} data-testid="spending-breakdown-card">
+    <GlassPanel elevation={2} hoverable data-testid="spending-breakdown-card">
       <h2 className="mb-1 font-heading font-medium text-foreground">Spending breakdown</h2>
       <p className="mb-4 text-sm text-muted">
         {data.hasAnyExpenseThisCycle
