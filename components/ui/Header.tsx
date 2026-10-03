@@ -1,19 +1,61 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 
 const NAV_LINKS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/expenses', label: 'Expenses' },
-  { href: '/budgets', label: 'Budgets' },
-  { href: '/cashflow', label: 'Cash Flow' },
+  { href: '#', label: 'Dashboard' },
+  { href: '#expenses', label: 'Expenses' },
+  { href: '#budgets', label: 'Budgets' },
+  { href: '#cashflow', label: 'Cash Flow' },
 ];
 
+const SECTION_IDS = ['expenses', 'budgets', 'cashflow'];
+
 export function Header() {
-  const pathname = usePathname();
   const router = useRouter();
+  const [activeHref, setActiveHref] = useState('#');
+  const activeHrefRef = useRef(activeHref);
+  activeHrefRef.current = activeHref;
+
+  useEffect(() => {
+    const sections = SECTION_IDS.map((id) => document.getElementById(id)).filter(
+      (el): el is HTMLElement => el !== null
+    );
+    if (sections.length === 0) return;
+
+    // Tracks which observed section is most visible right now, keyed by element id, so the
+    // callback (which only ever hears about the sections whose visibility just changed, not
+    // every section's current state) can still pick the single most-visible one on every firing —
+    // comparing only the sections that fired would wrongly ignore a still-mostly-visible section
+    // that simply didn't cross a threshold on this particular callback.
+    const ratios = new Map<string, number>();
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          ratios.set(entry.target.id, entry.intersectionRatio);
+        }
+        let bestId: string | null = null;
+        let bestRatio = 0;
+        for (const [id, ratio] of ratios) {
+          if (ratio > bestRatio) {
+            bestRatio = ratio;
+            bestId = id;
+          }
+        }
+        const nextHref = bestRatio > 0.1 && bestId ? `#${bestId}` : '#';
+        if (nextHref !== activeHrefRef.current) {
+          setActiveHref(nextHref);
+        }
+      },
+      { threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] }
+    );
+
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
 
   async function handleLogout() {
     try {
@@ -44,15 +86,15 @@ export function Header() {
         <span className="font-heading text-lg font-semibold text-foreground">Budget Buddy</span>
         <nav className="flex items-center gap-6">
           {NAV_LINKS.map((link) => (
-            <Link
+            <a
               key={link.href}
-              href={link.href}
+              href={link.href === '#' ? '/dashboard' : `/dashboard${link.href}`}
               className={`text-sm font-medium ${
-                pathname === link.href ? 'text-primary-hover' : 'text-muted hover:text-foreground'
+                activeHref === link.href ? 'text-primary-hover' : 'text-muted hover:text-foreground'
               }`}
             >
               {link.label}
-            </Link>
+            </a>
           ))}
           <button
             onClick={handleLogout}

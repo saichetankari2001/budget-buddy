@@ -5,7 +5,6 @@ const pushMock = vi.fn();
 const refreshMock = vi.fn();
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard',
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
 }));
 
@@ -75,5 +74,32 @@ describe('Header', () => {
     const logoutCallIndex = fetchMock.mock.calls.findIndex(([url]) => url === '/api/auth/logout');
     expect(unsubscribeCallIndex).toBeGreaterThanOrEqual(0);
     expect(unsubscribeCallIndex).toBeLessThan(logoutCallIndex);
+  });
+
+  it('highlights the nav link for the section currently most visible on screen', async () => {
+    let observerCallback: IntersectionObserverCallback = () => {};
+    const observeMock = vi.fn();
+    const disconnectMock = vi.fn();
+    global.IntersectionObserver = vi.fn().mockImplementation((callback: IntersectionObserverCallback) => {
+      observerCallback = callback;
+      return { observe: observeMock, disconnect: disconnectMock };
+    });
+
+    document.body.innerHTML = '<div id="expenses"></div><div id="budgets"></div><div id="cashflow"></div>';
+
+    render(<Header />);
+
+    expect(observeMock).toHaveBeenCalledTimes(3);
+
+    const expensesSection = document.getElementById('expenses')!;
+    observerCallback(
+      [{ target: expensesSection, intersectionRatio: 0.8 } as unknown as IntersectionObserverEntry],
+      {} as IntersectionObserver
+    );
+
+    await waitFor(() => {
+      const expensesLink = screen.getByText('Expenses');
+      expect(expensesLink.className).toContain('text-primary-hover');
+    });
   });
 });
