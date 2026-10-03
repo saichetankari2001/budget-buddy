@@ -27,6 +27,7 @@ describe('POST /api/cycles', () => {
     prismaMock.incomeSource.findMany.mockResolvedValue([]);
     prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
     prismaMock.expense.findMany.mockResolvedValue([]); // no all-time history by default
+    prismaMock.category.findMany.mockResolvedValue([]); // no categories by default — tests that need the zero-fill path set their own
     prismaMock.cycleCategoryBudget.createMany.mockResolvedValue({ count: 0 });
   });
 
@@ -243,6 +244,61 @@ describe('POST /api/cycles', () => {
     expect(prismaMock.cycleCategoryBudget.createMany).toHaveBeenCalledWith({
       data: [
         expect.objectContaining({ cycleId: 'cycle_1', categoryId: 'cat_1', categoryName: 'Food', recommendedAmount: 500 }),
+      ],
+    });
+  });
+
+  it('creates an even-split recommendation across the user\'s existing categories when there is no expense history yet', async () => {
+    // Regression test: every signup seeds 6 DEFAULT_CATEGORIES and there's no way to delete one, so
+    // a brand-new user's very first cycle has real categories but zero expenses ever — this must hit
+    // computeCategoryRecommendation's "zero spend, has categories" even-split branch (top 5 + Other),
+    // not its "zero categories" branch (which returns [] and used to leave the dashboard's
+    // SpendingBreakdownCard permanently stuck on "log a few expenses first").
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(null);
+    prismaMock.expense.findMany.mockResolvedValue([]); // no expense history at all
+    prismaMock.category.findMany.mockResolvedValue(
+      Array.from({ length: 6 }, (_, i) => ({
+        id: `cat_${i + 1}`,
+        userId: 'user_1',
+        name: `Category ${i + 1}`,
+        color: `#00000${i}`,
+        isGstFree: false,
+        createdAt: new Date(),
+      })) as never
+    );
+    vi.mocked(generatePlanMessage).mockResolvedValue('Your plan is ready.');
+    prismaMock.$transaction.mockImplementation(((callback: (tx: typeof prismaMock) => unknown) =>
+      callback(prismaMock)) as never);
+    prismaMock.moneyCycle.create.mockResolvedValue({
+      id: 'cycle_zero_history', userId: 'user_1', startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-09-15T00:00:00.000Z'), endDate: new Date('2026-09-20T00:00:00.000Z'),
+      status: 'ACTIVE', createdAt: new Date(),
+    } as never);
+    prismaMock.coachMessage.create.mockResolvedValue({
+      id: 'msg_zero_history', cycleId: 'cycle_zero_history', kind: 'PLAN', content: 'Your plan is ready.', createdAt: new Date(),
+    } as never);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cycles', {
+        method: 'POST',
+        body: JSON.stringify({ startingAmount: 500, endDate: '2026-09-20T00:00:00.000Z' }),
+      })
+    );
+
+    expect(res.status).toBe(201);
+    // pool = $500 (no committed spend) split evenly across all 6 categories: top 5 individually
+    // tracked (83.33 each) + the 6th folded into "Other" (83.33) — a 2-cent rounding remainder
+    // lands on the first entry (83.35), per computeCategoryRecommendation's own already-tested
+    // distributeRoundingRemainder logic (Task 2).
+    expect(prismaMock.cycleCategoryBudget.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ cycleId: 'cycle_zero_history', categoryId: 'cat_1', categoryName: 'Category 1', recommendedAmount: 83.35 }),
+        expect.objectContaining({ cycleId: 'cycle_zero_history', categoryId: 'cat_2', categoryName: 'Category 2', recommendedAmount: 83.33 }),
+        expect.objectContaining({ cycleId: 'cycle_zero_history', categoryId: 'cat_3', categoryName: 'Category 3', recommendedAmount: 83.33 }),
+        expect.objectContaining({ cycleId: 'cycle_zero_history', categoryId: 'cat_4', categoryName: 'Category 4', recommendedAmount: 83.33 }),
+        expect.objectContaining({ cycleId: 'cycle_zero_history', categoryId: 'cat_5', categoryName: 'Category 5', recommendedAmount: 83.33 }),
+        expect.objectContaining({ cycleId: 'cycle_zero_history', categoryId: null, categoryName: 'Other', recommendedAmount: 83.33 }),
       ],
     });
   });

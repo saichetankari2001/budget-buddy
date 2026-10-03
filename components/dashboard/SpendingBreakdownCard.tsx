@@ -81,29 +81,60 @@ export function SpendingBreakdownCard() {
           <p className="mb-2 text-center text-sm text-muted">
             {data.hasAnyExpenseThisCycle ? 'Actual so far' : 'Your usual pattern'}
           </p>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={leftPieData} dataKey="total" nameKey="categoryName" innerRadius={40} outerRadius={80}>
-                {leftPieData.map((entry) => (
-                  <Cell key={entry.key} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: number) => formatCurrency(value)} />
-            </PieChart>
-          </ResponsiveContainer>
+          {/* aria-hidden: recharts renders each pie slice as an SVG <path role="img"> with no
+              accessible name, which axe correctly flags (svg-img-alt/non-empty-title) — there is
+              nothing meaningful to label a slice with that isn't already in the real <table>
+              below, which is this card's actual accessible data source (per Task 7's own review:
+              "a stronger pattern than the existing CategoryPieChart"). Hiding the decorative chart
+              from the accessibility tree, rather than inventing redundant per-slice labels, is the
+              correct fix — sighted/mouse users keep the visual + hover tooltip unaffected.
+              rootTabIndex={-1}: recharts' Pie defaults its root <g> to tabIndex 0 for keyboard
+              users to tab into the chart — inside an aria-hidden container that becomes a second,
+              separate violation (aria-hidden-focus: a focusable element hidden from assistive tech
+              but still reachable by keyboard). Removing it from the tab order here is correct: the
+              chart has nothing keyboard-reachable worth exposing once the table already carries
+              the real data. */}
+          <div aria-hidden="true">
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={leftPieData}
+                  dataKey="total"
+                  nameKey="categoryName"
+                  innerRadius={40}
+                  outerRadius={80}
+                  rootTabIndex={-1}
+                >
+                  {leftPieData.map((entry) => (
+                    <Cell key={entry.key} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
         <div>
           <p className="mb-2 text-center text-sm text-muted">Recommended</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={rightPieData} dataKey="total" nameKey="categoryName" innerRadius={40} outerRadius={80}>
-                {rightPieData.map((entry) => (
-                  <Cell key={entry.key} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: number) => formatCurrency(value)} />
-            </PieChart>
-          </ResponsiveContainer>
+          <div aria-hidden="true">
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={rightPieData}
+                  dataKey="total"
+                  nameKey="categoryName"
+                  innerRadius={40}
+                  outerRadius={80}
+                  rootTabIndex={-1}
+                >
+                  {rightPieData.map((entry) => (
+                    <Cell key={entry.key} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
       <table className="mt-4 w-full text-left text-sm">

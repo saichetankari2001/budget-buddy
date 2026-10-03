@@ -44,14 +44,28 @@ export async function POST(request: NextRequest) {
     );
 
     const discretionaryPool = Math.max(remainingAmount - committedSpend, 0);
-    const allTimeExpenses = await prisma.expense.findMany({
-      where: { userId: user.userId },
-      include: { category: true },
-    });
+    const [allTimeExpenses, userCategories] = await Promise.all([
+      prisma.expense.findMany({ where: { userId: user.userId }, include: { category: true } }),
+      prisma.category.findMany({ where: { userId: user.userId } }),
+    ]);
     const categoryHistory = aggregateByCategory(
       allTimeExpenses.map((e) => ({ amount: Number(e.amount), date: e.date, category: e.category }))
     );
-    const recommendation = computeCategoryRecommendation(categoryHistory, discretionaryPool);
+    // Every signup seeds DEFAULT_CATEGORIES and there's no way to delete a category in this app, so
+    // a brand-new user always has real categories with zero expense history — not zero categories.
+    // aggregateByCategory only emits entries for categories that actually appear in the expenses
+    // array, so without this zero-fill, computeCategoryRecommendation would see an empty `history`
+    // array and hit its "zero categories" branch (returns []) instead of its "zero spend, has
+    // categories" branch (spec Section 3, Step 5 — even split across up to 5 categories + Other),
+    // leaving every brand-new user's first cycle with no recommendation rows at all.
+    const categoriesWithHistory = new Set(categoryHistory.map((c) => c.categoryId));
+    const zeroFilledHistory = [
+      ...categoryHistory,
+      ...userCategories
+        .filter((cat) => !categoriesWithHistory.has(cat.id))
+        .map((cat) => ({ categoryId: cat.id, categoryName: cat.name, color: cat.color, total: 0 })),
+    ];
+    const recommendation = computeCategoryRecommendation(zeroFilledHistory, discretionaryPool);
 
     const planMessageText = await generatePlanMessage({
       startingAmount,
