@@ -13,8 +13,14 @@ import { SpendingBreakdownCard } from '@/components/dashboard/SpendingBreakdownC
 import { DashboardHeroOrb } from '@/components/dashboard/DashboardHeroOrb';
 import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses';
 import { computeGstPaid } from '@/lib/utils/gst';
+import { ExpenseFilters } from '@/components/expenses/ExpenseFilters';
+import { ExpensesClient } from '@/app/expenses/ExpensesClient';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { categoryId?: string; from?: string; to?: string };
+}) {
   const user = await getCurrentUser();
   // middleware.ts already guarantees `user` is non-null for this route;
   // this check exists only to satisfy TypeScript.
@@ -67,6 +73,35 @@ export default async function DashboardPage() {
     limit: Number(budget.monthlyLimit),
   }));
 
+  const categories = await prisma.category.findMany({ where: { userId: user.userId } });
+
+  const expenseWhere: { userId: string; categoryId?: string; date?: { gte?: Date; lte?: Date } } = {
+    userId: user.userId,
+  };
+  if (searchParams.categoryId) expenseWhere.categoryId = searchParams.categoryId;
+  if (searchParams.from || searchParams.to) {
+    expenseWhere.date = {
+      ...(searchParams.from ? { gte: new Date(searchParams.from) } : {}),
+      ...(searchParams.to ? { lte: new Date(searchParams.to) } : {}),
+    };
+  }
+
+  const filteredExpenses = await prisma.expense.findMany({
+    where: expenseWhere,
+    include: { category: true },
+    orderBy: { date: 'desc' },
+  });
+
+  const serializedExpenses = filteredExpenses.map((e) => ({
+    id: e.id,
+    amount: Number(e.amount),
+    description: e.description,
+    date: e.date.toISOString(),
+    isRecurring: e.isRecurring,
+    recurrenceInterval: e.recurrenceInterval ?? undefined,
+    category: { id: e.category.id, name: e.category.name, color: e.category.color },
+  }));
+
   return (
     <>
       <Header />
@@ -108,6 +143,14 @@ export default async function DashboardPage() {
             <GlassPanel elevation={1}>
               <h2 className="mb-3 font-heading font-medium text-foreground">Budget progress</h2>
               <BudgetProgress items={budgetItems} />
+            </GlassPanel>
+          </div>
+
+          <div id="expenses" className="sm:col-span-2">
+            <GlassPanel elevation={1}>
+              <h2 className="mb-3 font-heading font-medium text-foreground">Expenses</h2>
+              <ExpenseFilters categories={categories} />
+              <ExpensesClient categories={categories} initialExpenses={serializedExpenses} />
             </GlassPanel>
           </div>
         </div>
