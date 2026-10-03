@@ -41,19 +41,27 @@ Cell → component mapping, roughly top to bottom:
 2. **Stat pair** (2 cells side by side on desktop, stacked on mobile): "Total spent this month", "GST paid this month" — unchanged `CountUpStat` usage.
 3. **Coach / Money Cycle** (large cell, roughly 2/3 width on desktop): `CoachCard`, unchanged.
 4. **Spending breakdown** (remaining 1/3, or full width below on narrower desktop breakpoints): `SpendingBreakdownCard`, unchanged.
-5. **id="expenses"** (large cell, full width or 2/3): `ExpenseFilters` + `ExpensesClient`, unchanged.
-6. **Category pie + trend chart** (2 cells side by side): `CategoryPieChart`, `MonthlyTrendChart`, unchanged.
-7. **id="budgets"**: `BudgetsClient`, unchanged.
-8. **id="cashflow"**: `CashFlowClient`, unchanged.
+5. **Category pie + trend chart** (2 cells side by side): `CategoryPieChart`, `MonthlyTrendChart` — already on today's dashboard, unchanged.
+6. **Budget progress** (today's existing read-only widget): `BudgetProgress` — already on today's dashboard, unchanged. Distinct from item 8 below: this shows progress bars for budgets *already set*; it is not replaced or removed by adding the editable management UI.
+7. **id="expenses"** (large cell, full width or 2/3): `ExpenseFilters` + `ExpensesClient`, unchanged.
+8. **id="budgets"**: `BudgetsClient` (the editable monthly-limit management UI, today living on the separate `/budgets` page) — a new cell, additive alongside item 6, not a replacement for it.
+9. **id="cashflow"**: `CashFlowClient`, unchanged.
 
-Exact column span numbers (e.g. `grid-column: span 2`) are an implementation-plan-level detail, not re-litigated here — the binding requirement is: every existing component above appears exactly once, in this relative order, as its own grid cell, with its own anchor id where listed.
+Items 1-4 and 5-6 are everything already on today's `/dashboard` — consolidating them is a pure layout/wrapper change, no new data fetching. Items 7-9 are genuinely new to this page (moved from the other three routes). Exact column span numbers (e.g. `grid-column: span 2`) are an implementation-plan-level detail, not re-litigated here — the binding requirement is: every component listed above appears exactly once, in this relative order, as its own grid cell, with its own anchor id where listed.
+
+**`ExpenseFilters.tsx` routing note:** it currently hardcodes `router.push('/expenses?${params}')` to apply a filter. On the consolidated page this must become `router.push('/dashboard?${params}#expenses')` (or equivalent) so filtering stays on the same page instead of bouncing through the new `/expenses` → `/dashboard` redirect and losing the anchor. This is a one-line routing-glue change, not a business-logic change — `ExpenseFilters` is not one of the three client components (`ExpensesClient`, `BudgetsClient`, `CashFlowClient`) this spec otherwise holds fixed.
 
 ## 6. Visual System: Glassmorphism 2.0, Pulled Back
 
 Four pages' worth of content on one screen is a lot of density — uniform heavy blur everywhere would hurt legibility, the opposite of "more advanced," not more of it. Two visual tiers, both still `GlassPanel`-based (no new primitive needed):
 
 - **Focal tier** (hero row, Coach/Money Cycle cell, Spending Breakdown cell): `GlassPanel elevation={2 or 3}`, `hoverable`, full existing blur/saturate/depth treatment — these are the cells meant to draw the eye first.
-- **Data tier** (everything else — expenses, budgets, cash flow, the two charts): `GlassPanel elevation={1}`, not hoverable, same border/background tokens but without the heavier shadow-depth/hover-tilt interaction, so dense tabular/list content stays calm and readable. This is a prop-level distinction on the existing `GlassPanel`, not a new component.
+- **Data tier** (everything else — expenses, budgets, cash flow, the two charts, budget progress): `GlassPanel elevation={1}`, not hoverable, same border/background tokens but without the heavier shadow-depth/hover-tilt interaction, so dense tabular/list content stays calm and readable. This is a prop-level distinction on the existing `GlassPanel`, not a new component.
+
+**Every bento cell needs exactly one tier-appropriate `GlassPanel` as its boundary — but which component owns that `GlassPanel` differs by cell:**
+
+- `ExpensesClient`, `BudgetsClient`, `CashFlowClient`, `CategoryPieChart`/`MonthlyTrendChart`, `BudgetProgress` do **not** return their own outer `GlassPanel` today (their current pages either add one themselves — `app/budgets/page.tsx` already wraps `BudgetsClient` this way — or render bare on the page background, relying only on internal micro-panels like list items). For these, the consolidated page adds ONE new outer `GlassPanel` around each, at the data tier (`elevation={1}`, not hoverable). Any internal micro-panel a component already renders (e.g. `ExpensesClient`'s per-row panels, `CashFlowClient`'s income/bills sub-panels) now sits *inside* that new outer boundary — a normal nested-card bento pattern, not a bug.
+- `CoachCard` and `SpendingBreakdownCard` already return their OWN root `<GlassPanel elevation={1}>` today — they are each already a complete, self-contained glass cell. These get **no additional outer wrapper** (double-wrapping two glass borders would look wrong). Promoting them to the focal tier means changing that one existing line's props in place — `elevation={1}` → `elevation={2}`, add `hoverable` — inside `CoachCard.tsx` and `SpendingBreakdownCard.tsx` themselves. This is a one-line visual-prop change, not a rewrite of either component's logic, and does not touch what either component renders or how it behaves.
 
 ## 7. Data Flow
 
