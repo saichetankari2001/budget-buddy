@@ -96,7 +96,10 @@ test('expenses page with a submitted expense shows its edit/delete icons and has
   await page.getByRole('button', { name: /add expense/i }).click();
   await page.getByLabel(/amount/i).fill('42.50');
   await page.getByLabel(/description/i).fill('Groceries');
-  await page.getByRole('button', { name: /^save$/i }).click();
+  // Scoped to #expenses: on the consolidated dashboard, the Manage Budgets cell's per-row "Save"
+  // buttons are also in the DOM at this point, so an unscoped locator matches multiple elements
+  // (strict-mode violation) — see the same fix/comment in e2e/dashboard.spec.ts.
+  await page.locator('#expenses').getByRole('button', { name: /^save$/i }).click();
 
   await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
@@ -108,6 +111,7 @@ test('expenses page with a submitted expense shows its edit/delete icons and has
 test('budgets page has no WCAG 2.1 A/AA violations', async ({ page }) => {
   await signUp(page, 'a11y-budgets');
   await page.goto('/budgets');
+  await page.waitForSelector('#budgets');
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
   expect(results.violations).toEqual([]);
 });

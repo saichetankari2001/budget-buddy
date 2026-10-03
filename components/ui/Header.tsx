@@ -19,6 +19,47 @@ export function Header() {
   const activeHrefRef = useRef(activeHref);
   activeHrefRef.current = activeHref;
 
+  // A hard navigation to one of the old routes (e.g. typing /expenses into the address bar)
+  // redirects server-side to /dashboard#<section> and otherwise relies entirely on the browser's
+  // native on-load anchor scroll. But several sections above the target — Money Coach's history
+  // list, the Spending Breakdown table, the Recharts-based charts — are client components that
+  // fetch their own data and grow the page's height *after* that native scroll already fired,
+  // which leaves the target section out of view by the time everything settles (worse the
+  // further down the page the target sits — confirmed empirically: the Expenses section ended
+  // up roughly 1300px below the viewport, Budgets over 6000px below). Re-run the scroll whenever
+  // the page's height changes, until it stops changing, so the final resting scroll position is
+  // always correct regardless of how long those fetches take.
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const target = document.getElementById(hash);
+    if (!target) return;
+
+    target.scrollIntoView();
+
+    let lastHeight = document.body.scrollHeight;
+    const resettle = () => {
+      const height = document.body.scrollHeight;
+      if (height !== lastHeight) {
+        lastHeight = height;
+        target.scrollIntoView();
+      }
+    };
+
+    const observer = new ResizeObserver(resettle);
+    observer.observe(document.body);
+
+    // By this point every client component's initial data fetch should have settled; stop
+    // watching so a later, unrelated height change (e.g. adding an expense) never yanks the
+    // user's scroll position back to the section.
+    const timeout = setTimeout(() => observer.disconnect(), 4000);
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(timeout);
+    };
+  }, []);
+
   useEffect(() => {
     const sections = SECTION_IDS.map((id) => document.getElementById(id)).filter(
       (el): el is HTMLElement => el !== null

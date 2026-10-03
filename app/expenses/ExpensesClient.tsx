@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, ChangeEvent } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import type { RecurrenceInterval } from '@prisma/client';
 import { ExpenseForm } from '@/components/expenses/ExpenseForm';
@@ -36,6 +36,18 @@ export function ExpensesClient({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+
+  // ExpenseFilters changes the category/date filters by pushing new searchParams onto the same
+  // /dashboard route, which re-runs the server component and sends this component a fresh
+  // `initialExpenses` prop reflecting the new filter — but this component isn't remounted by that
+  // navigation (same position in the tree), so useState(initialExpenses) above only ever applies
+  // on first mount. Without this effect, applying a filter changes the URL correctly but the
+  // visible list silently keeps showing the pre-filter data (confirmed live: filtering to a
+  // category that excludes an existing expense still displayed it). Re-sync whenever the server
+  // sends a new filtered list.
+  useEffect(() => {
+    setExpenses(initialExpenses);
+  }, [initialExpenses]);
 
   async function handleCreate(data: CreateExpenseInput) {
     const res = await fetch('/api/expenses', {
@@ -235,7 +247,17 @@ export function ExpensesClient({
                     )}
                   </p>
                   <p className="text-muted">
-                    {expense.category.name} · <span className="font-mono">{new Date(expense.date).toLocaleDateString()}</span>
+                    {/* Explicit 'en-AU' locale (matching lib/utils/currency.ts's convention, and
+                        the identical fix already applied to CashFlowClient's bill dates): Node's
+                        default Intl locale resolves to en-US regardless of server timezone/OS
+                        locale, while the browser resolves its own default — an unpinned
+                        toLocaleDateString() here renders e.g. "10/3/2026" server-side vs
+                        "03/10/2026" client-side, a real SSR/client hydration mismatch (confirmed
+                        live: this component receives expenses as server-rendered props, so this
+                        text genuinely renders on both sides — React discarded the server HTML and
+                        re-rendered the whole root on the client because of it). */}
+                    {expense.category.name} ·{' '}
+                    <span className="font-mono">{new Date(expense.date).toLocaleDateString('en-AU')}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

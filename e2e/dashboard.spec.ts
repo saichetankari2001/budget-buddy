@@ -17,12 +17,100 @@ test('signup, add an expense, and see it on the dashboard', async ({ page }) => 
   await page.getByRole('button', { name: /add expense/i }).click();
   await page.getByLabel(/amount/i).fill('42.50');
   await page.getByLabel(/description/i).fill('Test lunch');
-  await page.getByRole('button', { name: /save/i }).click();
+  // Scoped to #expenses: on the consolidated dashboard, the Manage Budgets cell renders its own
+  // per-row "Save" button for every category, all simultaneously in the DOM alongside the expense
+  // form's "Save" button — an unscoped getByRole('button', { name: /save/i }) now matches all of
+  // them (strict-mode violation) where it used to be unambiguous on the old single-purpose page.
+  await page.locator('#expenses').getByRole('button', { name: /^save$/i }).click();
 
   await expect(page.getByText('Test lunch')).toBeVisible();
 
-  await page.goto('/dashboard');
   await expect(page.getByText('$42.50')).toBeVisible();
+});
+
+test('old page routes redirect to the matching section of the consolidated dashboard', async ({ page }) => {
+  const email = `test-redirects-${Date.now()}@example.com`;
+  await page.goto('/signup');
+  await page.getByPlaceholder('Email').fill(email);
+  await page.getByPlaceholder('Password (8+ characters)').fill('long-enough-password');
+  await page.getByRole('button', { name: /sign up/i }).click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+
+  // Starting a Money Cycle before the redirect checks below means the Money Coach history list,
+  // the Spending Breakdown table, and both charts all have real content to render — which is what
+  // exposed the bug these toBeInViewport() assertions guard against (see comment below).
+  await page.getByLabel(/how much do you have/i).fill('500');
+  await page.getByLabel('Until when', { exact: true }).fill('2026-12-31');
+  await page.getByRole('button', { name: /^start$/i }).click();
+  await expect(page.getByText('Days left')).toBeVisible({ timeout: 15000 });
+
+  await page.goto('/expenses');
+  await expect(page).toHaveURL(/\/dashboard#expenses$/);
+  // Regression guard: a hard navigation to /expenses lands on /dashboard#expenses via the URL
+  // alone even if the browser never actually scrolled there — found live during this task's own
+  // verification. The browser's native on-load anchor scroll fires before the Money Coach
+  // history list, Spending Breakdown table, and charts above #expenses finish hydrating and
+  // growing the page, which left the section up to ~1300px below the viewport before the fix
+  // (components/ui/Header.tsx now re-settles the scroll via a ResizeObserver on document.body).
+  await expect(page.locator('#expenses')).toBeInViewport({ ratio: 0.5 });
+
+  await page.goto('/budgets');
+  await expect(page).toHaveURL(/\/dashboard#budgets$/);
+  // Same regression guard as above — #budgets sits even further down the page, so it was the
+  // worst-affected section before the fix (over 6000px below the viewport).
+  await expect(page.locator('#budgets')).toBeInViewport({ ratio: 0.5 });
+
+  await page.goto('/cashflow');
+  await expect(page).toHaveURL(/\/dashboard#cashflow$/);
+  await expect(page.locator('#cashflow')).toBeInViewport({ ratio: 0.5 });
+});
+
+test.describe('expenses hydration', () => {
+  // Same root cause as the 'cashflow hydration' block below (an unpinned toLocaleDateString() on
+  // text that is genuinely rendered server-side), found live during this task's own Step 6
+  // verification: ExpensesClient.tsx rendered each expense row's date via a plain
+  // `toLocaleDateString()` with no explicit locale, so a browser whose default locale differs from
+  // Node's default (en-US) produces a real server/client text mismatch once a real expense already
+  // exists in the DB at the time of a fresh hard navigation to /expenses (fixed by pinning 'en-AU',
+  // matching CashFlowClient's pre-existing fix for the same bug class on bill dates, and
+  // lib/utils/currency.ts's project-wide locale convention).
+  test.use({ locale: 'en-AU' });
+
+  test('expenses page reloaded with an existing expense hydrates without a server/client mismatch', async ({
+    page,
+  }) => {
+    const email = `test-expenses-hydration-${Date.now()}@example.com`;
+
+    await page.goto('/signup');
+    await page.getByPlaceholder('Email').fill(email);
+    await page.getByPlaceholder('Password (8+ characters)').fill('long-enough-password');
+    await page.getByRole('button', { name: /sign up/i }).click();
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+
+    await page.goto('/expenses');
+    await page.getByRole('button', { name: /add expense/i }).click();
+    await page.getByLabel(/amount/i).fill('25.00');
+    await page.getByLabel(/description/i).fill('Groceries');
+    await page.locator('#expenses').getByRole('button', { name: /^save$/i }).click();
+    await expect(page.getByText('Groceries', { exact: true })).toBeVisible();
+
+    // The expense now exists in the DB. Every prior add in this test only set local client state
+    // (ExpensesClient's handleCreate), so app/dashboard/page.tsx's server-rendered
+    // `serializedExpenses` prop was empty every time this page was hydrated so far. A FRESH
+    // navigation now is the first point where the server actually renders a real expense's
+    // formatted date via toLocaleDateString() — the same text the client then re-renders during
+    // hydration. See the 'cashflow hydration' block below for why `pageerror`, not console output,
+    // is the correct signal to assert against in a production build.
+    const pageErrors: string[] = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+
+    await page.goto('/expenses');
+    await expect(page.getByText('Groceries', { exact: true })).toBeVisible();
+    // Give any hydration-recovery errors a moment to fire before asserting.
+    await page.waitForTimeout(500);
+
+    expect(pageErrors).toEqual([]);
+  });
 });
 
 test.describe('cashflow hydration', () => {
