@@ -16,6 +16,7 @@ import { computeGstPaid } from '@/lib/utils/gst';
 import { ExpenseFilters } from '@/components/expenses/ExpenseFilters';
 import { ExpensesClient } from '@/app/expenses/ExpensesClient';
 import { CashFlowClient } from '@/app/cashflow/CashFlowClient';
+import { BudgetsClient } from '@/app/budgets/BudgetsClient';
 
 export default async function DashboardPage({
   searchParams,
@@ -127,6 +128,15 @@ export default async function DashboardPage({
     isPaidThisPeriod: b.paidExpenseId !== null && b.dueDate > nowForBills,
   }));
 
+  const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, Number(b.monthlyLimit)]));
+  const budgetRows = categories.map((category) => ({
+    categoryId: category.id,
+    categoryName: category.name,
+    color: category.color,
+    monthlyLimit: budgetByCategory.get(category.id) ?? null,
+    isGstFree: category.isGstFree,
+  }));
+
   return (
     <>
       <Header />
@@ -183,6 +193,13 @@ export default async function DashboardPage({
             <GlassPanel elevation={1}>
               <h2 className="mb-3 font-heading font-medium text-foreground">Cash Flow</h2>
               <CashFlowClient initialIncomeSources={serializedIncomeSources} initialBills={serializedBills} />
+            </GlassPanel>
+          </div>
+
+          <div id="budgets" className="sm:col-span-2">
+            <GlassPanel elevation={1}>
+              <h2 className="mb-3 font-heading font-medium text-foreground">Manage budgets</h2>
+              <BudgetsClient rows={budgetRows} />
             </GlassPanel>
           </div>
         </div>
