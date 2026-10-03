@@ -15,6 +15,7 @@ import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses
 import { computeGstPaid } from '@/lib/utils/gst';
 import { ExpenseFilters } from '@/components/expenses/ExpenseFilters';
 import { ExpensesClient } from '@/app/expenses/ExpensesClient';
+import { CashFlowClient } from '@/app/cashflow/CashFlowClient';
 
 export default async function DashboardPage({
   searchParams,
@@ -102,6 +103,30 @@ export default async function DashboardPage({
     category: { id: e.category.id, name: e.category.name, color: e.category.color },
   }));
 
+  const [incomeSources, bills] = await Promise.all([
+    prisma.incomeSource.findMany({ where: { userId: user.userId }, orderBy: { createdAt: 'asc' } }),
+    prisma.bill.findMany({ where: { userId: user.userId }, orderBy: { dueDate: 'asc' } }),
+  ]);
+
+  const serializedIncomeSources = incomeSources.map((s) => ({
+    id: s.id,
+    name: s.name,
+    type: s.type,
+    amount: s.amount ? Number(s.amount) : null,
+    recurrenceInterval: s.recurrenceInterval ?? undefined,
+    startDate: s.startDate.toISOString(),
+  }));
+
+  const nowForBills = new Date();
+  const serializedBills = bills.map((b) => ({
+    id: b.id,
+    name: b.name,
+    amount: Number(b.amount),
+    dueDate: b.dueDate.toISOString(),
+    recurrenceInterval: b.recurrenceInterval ?? undefined,
+    isPaidThisPeriod: b.paidExpenseId !== null && b.dueDate > nowForBills,
+  }));
+
   return (
     <>
       <Header />
@@ -151,6 +176,13 @@ export default async function DashboardPage({
               <h2 className="mb-3 font-heading font-medium text-foreground">Expenses</h2>
               <ExpenseFilters categories={categories} />
               <ExpensesClient categories={categories} initialExpenses={serializedExpenses} />
+            </GlassPanel>
+          </div>
+
+          <div id="cashflow" className="sm:col-span-2">
+            <GlassPanel elevation={1}>
+              <h2 className="mb-3 font-heading font-medium text-foreground">Cash Flow</h2>
+              <CashFlowClient initialIncomeSources={serializedIncomeSources} initialBills={serializedBills} />
             </GlassPanel>
           </div>
         </div>
