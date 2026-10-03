@@ -12,10 +12,20 @@ export interface CategoryActual {
  * sum. This is the one place that answers "how much did this user spend, by category" — used both
  * for "this cycle so far" (Task 5's notification check, Task 7's live tracking) and "all-time"
  * (Task 7's pre-expense historical pie), so there's exactly one implementation to keep correct.
+ *
+ * `window.createdAtGte` is a SEPARATE filter from `date`, ANDed with it — not a substitute. It
+ * exists only for "this cycle so far" callers, which float their `date` lower bound to the start
+ * of the cycle's own Sydney calendar day (see startOfSydneyDay) so a same-day expense still counts.
+ * That flooring alone isn't enough: `date` has no concept of which MoneyCycle an expense actually
+ * belongs to, so if a prior cycle completed/was cancelled and a new one started the same Sydney
+ * day, an expense logged under the OLD cycle earlier that day would have a `date` inside the NEW
+ * cycle's floored window too — double-counting it as the new cycle's spend. `createdAtGte` (passed
+ * as the new cycle's own `createdAt`) excludes anything logged before the new cycle existed, which
+ * `date` alone cannot distinguish. The all-time historical caller intentionally omits it.
  */
 export async function computeCategoryTotalsForWindow(
   userId: string,
-  window: { gte?: Date; lte?: Date },
+  window: { gte?: Date; lte?: Date; createdAtGte?: Date },
   trackedCategoryIds: string[]
 ): Promise<CategoryActual[]> {
   const hasWindow = window.gte !== undefined || window.lte !== undefined;
@@ -31,6 +41,7 @@ export async function computeCategoryTotalsForWindow(
             },
           }
         : {}),
+      ...(window.createdAtGte ? { createdAt: { gte: window.createdAtGte } } : {}),
     },
     select: { categoryId: true, amount: true },
   });

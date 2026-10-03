@@ -135,6 +135,33 @@ describe('checkCategoryThresholdAndNotify', () => {
     });
   });
 
+  it("excludes a same-day expense that was logged under a PRIOR cycle, not this one (cross-cycle double-count regression)", async () => {
+    // Regression test for the bug startOfSydneyDay's fix introduced: if a prior cycle completed
+    // or was cancelled earlier today and a new cycle started the same Sydney day, the new cycle's
+    // Sydney-day-floored window alone would also match an expense actually logged under the OLD
+    // cycle earlier today, inflating the new cycle's actual spend and able to fire a spurious
+    // threshold notification on its very first real expense. Scoping by `createdAt >=
+    // cycle.createdAt` excludes it.
+    const newCycleCreatedAt = new Date('2026-09-16T14:00:00.000Z');
+    const newCycle = { ...activeCycle, startDate: newCycleCreatedAt, createdAt: newCycleCreatedAt };
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(newCycle as never);
+    prismaMock.cycleCategoryBudget.findFirst.mockResolvedValue(foodBudgetRow as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([foodBudgetRow] as never);
+    // A real Prisma query scoped by `createdAt: { gte: newCycleCreatedAt }` would exclude the old
+    // cycle's $85 expense (logged before the new cycle existed), so the mock returns nothing —
+    // standing in for that real filtering. If the fix were missing, this would still return $85
+    // and incorrectly fire the 80% notification on a cycle that has had zero real spend.
+    prismaMock.expense.findMany.mockResolvedValue([]);
+
+    await checkCategoryThresholdAndNotify('user_1', 'cat_food');
+
+    const findManyMock = prismaMock.expense.findMany as unknown as { mock: { calls: unknown[][] } };
+    const firstCallArgs = findManyMock.mock.calls[0][0] as { where: { createdAt?: { gte: Date } } };
+    expect(firstCallArgs.where.createdAt).toEqual({ gte: newCycleCreatedAt });
+    expect(prismaMock.cycleCategoryBudget.update).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+  });
+
   it('never throws, even if sendPushNotification itself rejects', async () => {
     prismaMock.moneyCycle.findFirst.mockResolvedValue(activeCycle as never);
     prismaMock.cycleCategoryBudget.findFirst.mockResolvedValue(foodBudgetRow as never);

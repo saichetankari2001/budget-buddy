@@ -34,9 +34,12 @@ export async function checkCategoryThresholdAndNotify(userId: string, categoryId
     // comment in lib/utils/moneyCycle.ts. Without this, an expense dated "today" is always
     // earlier than cycle.startDate's exact creation timestamp, so it would never count toward
     // this check on the day the cycle was actually started.
+    // createdAtGte: the Sydney-day floor on `date` alone can't tell this cycle's expenses apart
+    // from a PRIOR cycle's same-day expenses (if one completed/was cancelled earlier today) —
+    // excluding anything logged before this cycle existed closes that gap.
     const actuals = await computeCategoryTotalsForWindow(
       userId,
-      { gte: startOfSydneyDay(cycle.startDate) },
+      { gte: startOfSydneyDay(cycle.startDate), createdAtGte: cycle.createdAt },
       trackedCategoryIds
     );
     const actualForTarget = actuals.find((a) => a.categoryId === targetRow.categoryId)?.actual ?? 0;

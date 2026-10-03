@@ -36,7 +36,15 @@ export async function GET() {
     // as "this cycle" spending on the day the cycle was actually started.
     const cycleWindowStart = startOfSydneyDay(cycle.startDate);
     const [actuals, historical] = await Promise.all([
-      computeCategoryTotalsForWindow(user.userId, { gte: cycleWindowStart, lte: now }, trackedCategoryIds),
+      // createdAtGte: the Sydney-day floor on `date` alone can't tell this cycle's expenses apart
+      // from a PRIOR cycle's same-day expenses (if one completed/was cancelled earlier today) —
+      // excluding anything logged before this cycle existed closes that gap. The all-time
+      // historical call below intentionally omits it — it must stay unscoped by design.
+      computeCategoryTotalsForWindow(
+        user.userId,
+        { gte: cycleWindowStart, lte: now, createdAtGte: cycle.createdAt },
+        trackedCategoryIds
+      ),
       computeCategoryTotalsForWindow(user.userId, {}, trackedCategoryIds),
     ]);
 
