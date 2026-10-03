@@ -108,6 +108,33 @@ describe('checkCategoryThresholdAndNotify', () => {
     });
   });
 
+  it("checks against the start of the cycle's own Sydney calendar day, not its exact creation timestamp", async () => {
+    // Regression test: a cycle created at 23:10 UTC on the 10th is already the 11th in Sydney
+    // (UTC+10 in September). An expense dated "today" (the 11th) via the date picker serializes
+    // to 2026-09-11T00:00:00.000Z, earlier than this exact creation instant — before the fix,
+    // such a same-day expense would never be counted, so the 80%/100% threshold could never fire
+    // on the day a cycle was actually started.
+    const lateCreatedCycle = { ...activeCycle, startDate: new Date('2026-09-10T23:10:00.000Z') };
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(lateCreatedCycle as never);
+    prismaMock.cycleCategoryBudget.findFirst.mockResolvedValue(foodBudgetRow as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([foodBudgetRow] as never);
+    prismaMock.expense.findMany.mockResolvedValue([
+      { categoryId: 'cat_food', amount: { toString: () => '85.00' } as never },
+    ] as never);
+    prismaMock.pushSubscription.findMany.mockResolvedValue([]);
+
+    await checkCategoryThresholdAndNotify('user_1', 'cat_food');
+
+    const findManyMock = prismaMock.expense.findMany as unknown as { mock: { calls: unknown[][] } };
+    const firstCallArgs = findManyMock.mock.calls[0][0] as { where: { date: { gte: Date } } };
+    expect(firstCallArgs.where.date).toMatchObject({ gte: new Date('2026-09-11T00:00:00.000Z') });
+    // And the threshold check still ran off that (correctly-windowed) $85 total.
+    expect(prismaMock.cycleCategoryBudget.update).toHaveBeenCalledWith({
+      where: { id: 'ccb_1' },
+      data: { notifiedAt80: expect.any(Date) },
+    });
+  });
+
   it('never throws, even if sendPushNotification itself rejects', async () => {
     prismaMock.moneyCycle.findFirst.mockResolvedValue(activeCycle as never);
     prismaMock.cycleCategoryBudget.findFirst.mockResolvedValue(foodBudgetRow as never);

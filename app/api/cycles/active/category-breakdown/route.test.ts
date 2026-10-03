@@ -69,4 +69,31 @@ describe('GET /api/cycles/active/category-breakdown', () => {
       hasAnyExpenseThisCycle: true,
     });
   });
+
+  it("uses the start of the cycle's own Sydney calendar day as the actual-spend window, not its exact creation timestamp", async () => {
+    // Created at 23:10 UTC on the 15th, which is already the 16th in Sydney (UTC+10 in
+    // September) — an expense dated "today" (the 16th) via the date picker would serialize to
+    // 2026-09-16T00:00:00.000Z, which is BEFORE this exact timestamp. Regression test for the
+    // bug this fixes: such a same-day expense must still count as "this cycle" spending.
+    const lateCreatedCycle = {
+      ...activeCycle,
+      startDate: new Date('2026-09-15T23:10:00.000Z'),
+    };
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(lateCreatedCycle as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([
+      {
+        id: 'ccb_1', cycleId: 'cycle_1', categoryId: 'cat_1', categoryName: 'Food', categoryColor: '#f97316',
+        recommendedAmount: { toString: () => '100.00' } as never, notifiedAt80: null, notifiedAt100: null, createdAt: new Date(),
+      },
+    ] as never);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+
+    await GET();
+
+    // First call is the "this cycle" window (gte/lte); second is all-time historical (no date filter).
+    const findManyMock = prismaMock.expense.findMany as unknown as { mock: { calls: unknown[][] } };
+    const firstCallArgs = findManyMock.mock.calls[0][0] as { where: { date: { gte: Date } } };
+    expect(firstCallArgs.where.date).toMatchObject({ gte: new Date('2026-09-16T00:00:00.000Z') });
+  });
 });

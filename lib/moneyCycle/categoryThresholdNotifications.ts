@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { sendPushNotification } from '@/lib/push/send';
 import { computeCategoryTotalsForWindow } from './categoryTotals';
 import { formatCurrency } from '@/lib/utils/currency';
+import { startOfSydneyDay } from '@/lib/utils/moneyCycle';
 
 /**
  * Checked immediately after an expense is created (POST /api/expenses), not in the daily cron —
@@ -29,7 +30,15 @@ export async function checkCategoryThresholdAndNotify(userId: string, categoryId
       where: { cycleId: cycle.id, categoryId: { not: null } },
     });
     const trackedCategoryIds = trackedRows.map((r) => r.categoryId as string);
-    const actuals = await computeCategoryTotalsForWindow(userId, { gte: cycle.startDate }, trackedCategoryIds);
+    // Floor to the start of the cycle's own calendar day (Sydney) — see startOfSydneyDay's doc
+    // comment in lib/utils/moneyCycle.ts. Without this, an expense dated "today" is always
+    // earlier than cycle.startDate's exact creation timestamp, so it would never count toward
+    // this check on the day the cycle was actually started.
+    const actuals = await computeCategoryTotalsForWindow(
+      userId,
+      { gte: startOfSydneyDay(cycle.startDate) },
+      trackedCategoryIds
+    );
     const actualForTarget = actuals.find((a) => a.categoryId === targetRow.categoryId)?.actual ?? 0;
 
     const ratio = actualForTarget / recommended;

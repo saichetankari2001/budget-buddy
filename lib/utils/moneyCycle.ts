@@ -9,6 +9,31 @@ export function computeDaysRemaining(endDate: Date, today: Date): number {
 }
 
 /**
+ * Floors an instant to the start (00:00, stamped as UTC midnight) of its own calendar day in
+ * Australia/Sydney — the same anchoring projectCycle.ts's getTodayInSydney uses for "today" when
+ * bucketing the cash-flow projection, generalized to any instant.
+ *
+ * Needed wherever a cycle's exact creation timestamp (`cycle.startDate`, stored to the second) is
+ * used as a `gte` filter bound for "spending so far this cycle": without flooring it first, any
+ * expense dated "today" via the date picker (which serializes to today's UTC midnight) is
+ * silently excluded from that cycle's totals the moment any time at all has passed since the
+ * cycle was created — which is to say, always. A user who starts a cycle and immediately logs an
+ * expense dated today would see it vanish from "this cycle" entirely.
+ */
+export function startOfSydneyDay(instant: Date): Date {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(instant);
+  const year = Number(parts.find((p) => p.type === 'year')!.value);
+  const month = Number(parts.find((p) => p.type === 'month')!.value);
+  const day = Number(parts.find((p) => p.type === 'day')!.value);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+/**
  * @deprecated Flat-average helper with no production callers left. It only ever saw legacy recurring
  * Expense templates — it is blind to Bill and IncomeSource rows — which is exactly how the dashboard
  * and the chat ended up quoting different numbers for the same cycle. Derive cycle figures through

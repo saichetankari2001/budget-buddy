@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth/session';
 import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { computeCategoryTotalsForWindow } from '@/lib/moneyCycle/categoryTotals';
+import { startOfSydneyDay } from '@/lib/utils/moneyCycle';
 
 export async function GET() {
   try {
@@ -29,8 +30,13 @@ export async function GET() {
 
     const trackedCategoryIds = budgetRows.filter((r) => r.categoryId !== null).map((r) => r.categoryId as string);
     const now = new Date();
+    // Floor to the start of the cycle's own calendar day (Sydney) — see startOfSydneyDay's doc
+    // comment. Without this, an expense dated "today" via the date picker (today's UTC midnight)
+    // is always earlier than cycle.startDate's exact creation timestamp, so it would never count
+    // as "this cycle" spending on the day the cycle was actually started.
+    const cycleWindowStart = startOfSydneyDay(cycle.startDate);
     const [actuals, historical] = await Promise.all([
-      computeCategoryTotalsForWindow(user.userId, { gte: cycle.startDate, lte: now }, trackedCategoryIds),
+      computeCategoryTotalsForWindow(user.userId, { gte: cycleWindowStart, lte: now }, trackedCategoryIds),
       computeCategoryTotalsForWindow(user.userId, {}, trackedCategoryIds),
     ]);
 

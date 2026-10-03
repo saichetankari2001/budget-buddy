@@ -7,6 +7,7 @@ import {
   computePacingStatus,
   buildFallbackPlanMessage,
   buildFallbackCheckInMessage,
+  startOfSydneyDay,
 } from './moneyCycle';
 
 describe('computeDaysRemaining', () => {
@@ -17,6 +18,26 @@ describe('computeDaysRemaining', () => {
   it('floors at 1 so safe-to-spend never divides by zero, even on the end date itself', () => {
     expect(computeDaysRemaining(new Date('2026-09-10'), new Date('2026-09-10'))).toBe(1);
     expect(computeDaysRemaining(new Date('2026-09-09'), new Date('2026-09-10'))).toBe(1);
+  });
+});
+
+describe('startOfSydneyDay', () => {
+  it('floors a late-day instant to UTC midnight of the same Sydney calendar day', () => {
+    // 2026-09-15T23:10:00Z is 2026-09-16 09:10 AEST (Sydney, UTC+10 in September) — a cycle
+    // created at this instant should floor to 2026-09-16T00:00:00Z, not the 15th.
+    const result = startOfSydneyDay(new Date('2026-09-15T23:10:00.000Z'));
+    expect(result.toISOString()).toBe('2026-09-16T00:00:00.000Z');
+  });
+
+  it('is idempotent on an instant already at Sydney midnight', () => {
+    const result = startOfSydneyDay(new Date('2026-09-16T00:00:00.000Z'));
+    expect(result.toISOString()).toBe('2026-09-16T00:00:00.000Z');
+  });
+
+  it('floors an early-morning instant to the same Sydney calendar day, not the previous one', () => {
+    // 2026-09-16T01:00:00Z is still 2026-09-16 11:00 AEST — same Sydney day.
+    const result = startOfSydneyDay(new Date('2026-09-16T01:00:00.000Z'));
+    expect(result.toISOString()).toBe('2026-09-16T00:00:00.000Z');
   });
 });
 
