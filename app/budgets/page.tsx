@@ -1,37 +1,5 @@
-import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/auth/session';
-import { Header } from '@/components/ui/Header';
-import { GlassPanel } from '@/components/ui/GlassPanel';
-import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
-import { BudgetsClient } from './BudgetsClient';
+import { redirect } from 'next/navigation';
 
-export default async function BudgetsPage() {
-  const user = await getCurrentUser();
-  if (!user) return null;
-
-  const categories = await prisma.category.findMany({ where: { userId: user.userId } });
-  const budgets = await prisma.budget.findMany({ where: { userId: user.userId } });
-
-  const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, Number(b.monthlyLimit)]));
-
-  const rows = categories.map((category) => ({
-    categoryId: category.id,
-    categoryName: category.name,
-    color: category.color,
-    monthlyLimit: budgetByCategory.get(category.id) ?? null,
-    isGstFree: category.isGstFree,
-  }));
-
-  return (
-    <>
-      <Header />
-      <main className="relative mx-auto max-w-3xl overflow-hidden px-4 py-8">
-        <AmbientBlobs />
-        <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Budgets</h1>
-        <GlassPanel elevation={1}>
-          <BudgetsClient rows={rows} />
-        </GlassPanel>
-      </main>
-    </>
-  );
+export default function BudgetsPage() {
+  redirect('/dashboard#budgets');
 }
