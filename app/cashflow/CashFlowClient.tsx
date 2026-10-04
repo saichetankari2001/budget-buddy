@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { RecurrenceInterval, IncomeSourceType } from '@prisma/client';
 import { IncomeSourceForm, CreateIncomeSourceInput } from '@/components/income/IncomeSourceForm';
 import { BillForm, CreateBillInput } from '@/components/bills/BillForm';
@@ -36,6 +37,7 @@ export function CashFlowClient({
   initialIncomeSources: IncomeSource[];
   initialBills: Bill[];
 }) {
+  const router = useRouter();
   const [incomeSources, setIncomeSources] = useState(initialIncomeSources);
   const [bills, setBills] = useState(initialBills);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
@@ -108,6 +110,9 @@ export function CashFlowClient({
     }
     await refreshBills();
     setProjectionRefreshKey((k) => k + 1);
+    // Marking a bill paid creates a real Expense row server-side (see POST /api/bills/[id]/pay),
+    // which feeds the dashboard's stats, charts, and Budget progress cells.
+    router.refresh();
   }
 
   return (

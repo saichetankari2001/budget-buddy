@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, ChangeEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import type { RecurrenceInterval } from '@prisma/client';
 import { ExpenseForm } from '@/components/expenses/ExpenseForm';
@@ -32,6 +33,7 @@ export function ExpensesClient({
   categories: { id: string; name: string; color: string }[];
   initialExpenses: Expense[];
 }) {
+  const router = useRouter();
   const [expenses, setExpenses] = useState(initialExpenses);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -64,6 +66,11 @@ export function ExpensesClient({
     const category = categories.find((c) => c.id === created.categoryId)!;
     setExpenses((prev) => [{ ...created, amount: Number(created.amount), category }, ...prev]);
     setShowAddForm(false);
+    // Revalidates app/dashboard/page.tsx's server-rendered data (stats, charts, Budget progress)
+    // so an expense added here is reflected in the rest of the consolidated dashboard without a
+    // manual reload. Doesn't clobber this component's own optimistic update above — the fresh
+    // initialExpenses prop that arrives just re-syncs to the same state via the useEffect below.
+    router.refresh();
   }
 
   async function handleUpdate(id: string, data: CreateExpenseInput) {
@@ -94,6 +101,7 @@ export function ExpensesClient({
       )
     );
     setEditingId(null);
+    router.refresh();
   }
 
   async function handleDelete(id: string) {
@@ -104,6 +112,7 @@ export function ExpensesClient({
       return;
     }
     setExpenses((prev) => prev.filter((e) => e.id !== id));
+    router.refresh();
   }
 
   async function handleImport(e: ChangeEvent<HTMLInputElement>) {
@@ -147,6 +156,7 @@ export function ExpensesClient({
           category: { id: d.category.id, name: d.category.name, color: d.category.color },
         }))
       );
+      router.refresh();
     }
   }
 

@@ -4,6 +4,10 @@ import { CashFlowClient } from './CashFlowClient';
 
 let realtimeOnUpdate: (() => void) | undefined;
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock('@/hooks/useRealtimeCycleUpdates', () => ({
   useRealtimeCycleUpdates: (onUpdate: () => void) => {
     realtimeOnUpdate = onUpdate;

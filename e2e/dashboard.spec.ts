@@ -165,6 +165,12 @@ test.describe('cashflow hydration', () => {
   test('cashflow page reloaded with an existing bill hydrates without a server/client mismatch', async ({
     page,
   }) => {
+    // Same reasoning as the per-test timeout overrides elsewhere in this file: this test signs up,
+    // starts a cycle, and does two fresh hard navigations to the now-heavier consolidated
+    // /dashboard page. Measured at 24.3s against the 30s default in an earlier verification pass
+    // (margin-tight, not reliably failing) and reproduced an actual timeout under real load since.
+    test.setTimeout(60_000);
+
     const email = `test-cashflow-hydration-${Date.now()}@example.com`;
 
     await page.goto('/signup');

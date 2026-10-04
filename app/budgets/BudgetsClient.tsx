@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 
 export interface BudgetRow {
@@ -12,6 +13,7 @@ export interface BudgetRow {
 }
 
 export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
+  const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [inputs, setInputs] = useState<Record<string, string>>(
     Object.fromEntries(initialRows.map((r) => [r.categoryId, r.monthlyLimit?.toString() ?? '']))
@@ -30,6 +32,9 @@ export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
       return;
     }
     setRows((prev) => prev.map((r) => (r.categoryId === categoryId ? { ...r, monthlyLimit: value } : r)));
+    // Revalidates app/dashboard/page.tsx's server-rendered data so the separate, read-only
+    // "Budget progress" cell reflects this limit without a manual reload.
+    router.refresh();
   }
 
   async function handleRemove(categoryId: string) {
@@ -41,6 +46,7 @@ export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
     }
     setRows((prev) => prev.map((r) => (r.categoryId === categoryId ? { ...r, monthlyLimit: null } : r)));
     setInputs((prev) => ({ ...prev, [categoryId]: '' }));
+    router.refresh();
   }
 
   async function handleToggleGstFree(categoryId: string, isGstFree: boolean) {
@@ -54,7 +60,10 @@ export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
       setRows((prev) => prev.map((r) => (r.categoryId === categoryId ? { ...r, isGstFree: !isGstFree } : r)));
       const body = await res.json().catch(() => ({}));
       alert(body.error ?? 'Failed to update category');
+      return;
     }
+    // A category's GST-free flag feeds the dashboard's "GST paid this month" stat.
+    router.refresh();
   }
 
   return (
