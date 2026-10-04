@@ -8,6 +8,7 @@ import { generateChatReply, ChatHistoryMessage } from '@/lib/ai/chat';
 import { updateCycleAmount, cancelCycle } from '@/lib/moneyCycle/actions';
 import { addIncomeSource, logIncomeEntry } from '@/lib/income/actions';
 import { addBill, markBillPaid } from '@/lib/bills/actions';
+import { logExpense } from '@/lib/expenses/actions';
 
 const chatMessageSchema = z.object({ message: z.string().min(1).max(500) });
 
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
       logIncome: (input) => logIncomeEntry(user.userId, input),
       addBill: (input) => addBill(user.userId, { ...input, dueDate: new Date(input.dueDate) }),
       markBillPaid: (billName: string) => markBillPaid(user.userId, billName),
+      logExpense: (input) => logExpense(user.userId, input),
     });
 
     await prisma.coachMessage.create({ data: { cycleId: cycle.id, kind: 'CHAT', content: reply } });

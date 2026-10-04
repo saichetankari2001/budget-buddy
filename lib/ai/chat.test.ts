@@ -25,6 +25,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     const result = await generateChatReply('hey there', [], handlers);
 
@@ -61,6 +62,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     const result = await generateChatReply('change it to 700', [], handlers);
 
@@ -91,6 +93,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     const result = await generateChatReply('cancel my cycle', [], handlers);
 
@@ -120,6 +123,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     await generateChatReply('cancel my cycle', [], handlers);
 
@@ -147,6 +151,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     const result = await generateChatReply('change it to 700', [], handlers);
 
@@ -164,6 +169,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     await generateChatReply('change it to 700', [], handlers);
 
@@ -184,6 +190,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     await generateChatReply('hey there', [], handlers);
 
@@ -222,6 +229,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
 
     const result = await generateChatReply('change it to 700', [], handlers);
@@ -278,6 +286,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     const result = await generateChatReply('I got a new casual job, $30/hour weekly starting next Monday', [], handlers);
 
@@ -320,6 +329,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn().mockResolvedValue({ success: true, id: 'entry_1' }),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     const result = await generateChatReply('I just got $85 from Uber', [], handlers);
 
@@ -356,6 +366,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn().mockResolvedValue({ success: true, id: 'bill_1' }),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     const result = await generateChatReply('add a phone bill, $30, due Oct 2', [], handlers);
 
@@ -392,11 +403,93 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn().mockResolvedValue({ success: true, expenseId: 'expense_1' }),
+      logExpense: vi.fn(),
     };
     const result = await generateChatReply('I paid the phone bill', [], handlers);
 
     expect(result).toBe('Marked your phone bill as paid.');
     expect(handlers.markBillPaid).toHaveBeenCalledWith('Phone');
+  });
+
+  it('calls logExpense when Gemini requests log_expense, then uses the follow-up reply', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  {
+                    functionCall: {
+                      name: 'log_expense',
+                      args: { amount: 20, description: 'Groceries', categoryName: 'Food' },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { role: 'model', parts: [{ text: 'Logged $20 for Groceries under Food.' }] } }],
+        }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+      logExpense: vi.fn().mockResolvedValue({ success: true, id: 'expense_1', categoryName: 'Food' }),
+    };
+    const result = await generateChatReply('I spent $20 on groceries', [], handlers);
+
+    expect(result).toBe('Logged $20 for Groceries under Food.');
+    expect(handlers.logExpense).toHaveBeenCalledWith({ amount: 20, description: 'Groceries', categoryName: 'Food' });
+  });
+
+  it('calls logExpense with categoryName omitted when Gemini has no clear category to infer', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ functionCall: { name: 'log_expense', args: { amount: 15, description: 'Random stuff' } } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { role: 'model', parts: [{ text: 'Logged $15 for Random stuff.' }] } }],
+        }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+      logExpense: vi.fn().mockResolvedValue({ success: true, id: 'expense_2', categoryName: 'Other' }),
+    };
+    const result = await generateChatReply('spent $15 on random stuff', [], handlers);
+
+    expect(result).toBe('Logged $15 for Random stuff.');
+    expect(handlers.logExpense).toHaveBeenCalledWith({ amount: 15, description: 'Random stuff', categoryName: undefined });
   });
 
   it('relays a thrown error from the addBill handler to Gemini as a {success:false} result, and logs it, instead of letting the exception propagate', async () => {
@@ -429,6 +522,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn().mockRejectedValue(new Error('unexpected db failure')),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
 
     const result = await generateChatReply('add a phone bill, $30, due Oct 2', [], handlers);
@@ -476,6 +570,7 @@ describe('generateChatReply', () => {
       logIncome: vi.fn(),
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
     };
     const result = await generateChatReply('change it to some amount', [], handlers);
 

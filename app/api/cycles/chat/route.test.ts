@@ -8,11 +8,13 @@ vi.mock('@/lib/ai/chat', () => ({ generateChatReply: vi.fn() }));
 vi.mock('@/lib/moneyCycle/actions', () => ({ updateCycleAmount: vi.fn(), cancelCycle: vi.fn() }));
 vi.mock('@/lib/income/actions', () => ({ addIncomeSource: vi.fn(), logIncomeEntry: vi.fn() }));
 vi.mock('@/lib/bills/actions', () => ({ addBill: vi.fn(), markBillPaid: vi.fn() }));
+vi.mock('@/lib/expenses/actions', () => ({ logExpense: vi.fn() }));
 
 import { getCurrentUser } from '@/lib/auth/session';
 import { generateChatReply } from '@/lib/ai/chat';
 import { addIncomeSource, logIncomeEntry } from '@/lib/income/actions';
 import { addBill, markBillPaid } from '@/lib/bills/actions';
+import { logExpense } from '@/lib/expenses/actions';
 import { POST } from './route';
 
 const mockUser = { userId: 'user_1', email: 'a@example.com' };
@@ -182,6 +184,27 @@ describe('POST /api/cycles/chat', () => {
     await handlers.markBillPaid('Phone');
 
     expect(markBillPaid).toHaveBeenCalledWith('user_1', 'Phone');
+  });
+
+  it('binds the logExpense handler to user.userId', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({ id: 'cycle_1', userId: 'user_1', status: 'ACTIVE' } as never);
+    prismaMock.coachMessage.findMany.mockResolvedValue([]);
+    prismaMock.coachMessage.create.mockResolvedValue({} as never);
+    vi.mocked(generateChatReply).mockResolvedValue('Logged $20 for Groceries under Food.');
+    vi.mocked(logExpense).mockResolvedValue({ success: true, id: 'expense_1', categoryName: 'Food' } as never);
+
+    await POST(
+      new NextRequest('http://localhost/api/cycles/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'I spent $20 on groceries' }),
+      })
+    );
+
+    const handlers = vi.mocked(generateChatReply).mock.calls[0][2];
+    await handlers.logExpense({ amount: 20, description: 'Groceries', categoryName: 'Food' });
+
+    expect(logExpense).toHaveBeenCalledWith('user_1', { amount: 20, description: 'Groceries', categoryName: 'Food' });
   });
 
   it('returns 400 when there is no active cycle', async () => {

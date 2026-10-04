@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
@@ -29,6 +30,7 @@ interface ActiveCycle {
 }
 
 export function CoachCard() {
+  const router = useRouter();
   const [cycle, setCycle] = useState<ActiveCycle | null | undefined | 'error'>(undefined);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -109,6 +111,11 @@ export function CoachCard() {
       const refreshed = await fetch('/api/cycles/active');
       if (refreshed.ok) {
         setCycle(await refreshed.json());
+        // A chat message can invoke a tool (log_expense, add_bill, add_income_source, ...) that
+        // changes data other dashboard cells derive from — stats, charts, Budget progress, the
+        // Expenses list. Revalidates the whole page's server-rendered data, same as every other
+        // mutation path on this dashboard.
+        router.refresh();
       } else {
         setCycle(previousCycle);
         setChatError('Something went wrong sending that message. Try again.');

@@ -68,6 +68,21 @@ const TOOLS = [
           required: ['billName'],
         },
       },
+      {
+        name: 'log_expense',
+        description:
+          "Log a purchase the user just made as a real expense. Infer a short description and a category name " +
+          "(e.g. Food, Transport, Housing, Entertainment, Utilities) from what they said; if no category is obvious, omit it.",
+        parameters: {
+          type: 'object',
+          properties: {
+            amount: { type: 'number', description: 'The amount spent, in AUD' },
+            description: { type: 'string', description: 'A short description of the purchase, e.g. "Groceries"' },
+            categoryName: { type: 'string', description: 'The best-matching category name, if one is evident' },
+          },
+          required: ['amount', 'description'],
+        },
+      },
     ],
   },
 ];
@@ -95,6 +110,11 @@ export interface ChatToolHandlers {
     recurrenceInterval?: 'WEEKLY' | 'MONTHLY' | 'YEARLY';
   }) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
   markBillPaid: (billName: string) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
+  logExpense: (input: {
+    amount: number;
+    description: string;
+    categoryName?: string;
+  }) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
 }
 
 const FALLBACK_REPLY = "Sorry, I couldn't catch that — try again in a moment.";
@@ -215,6 +235,18 @@ export async function generateChatReply(
           toolResult = { success: false, error: 'billName must be a string' };
         } else {
           toolResult = await handlers.markBillPaid(args.billName);
+        }
+      } else if (name === 'log_expense') {
+        if (typeof args.amount !== 'number') {
+          toolResult = { success: false, error: 'amount must be a number' };
+        } else if (typeof args.description !== 'string') {
+          toolResult = { success: false, error: 'description must be a string' };
+        } else {
+          toolResult = await handlers.logExpense({
+            amount: args.amount,
+            description: args.description,
+            categoryName: typeof args.categoryName === 'string' ? args.categoryName : undefined,
+          });
         }
       } else {
         toolResult = { success: false, error: `Unknown tool: ${name}` };
