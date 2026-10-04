@@ -48,12 +48,14 @@ export async function generatePlanMessage(input: {
     ? ` Importantly: ${input.shortfallWarning}.`
     : '';
   const prompt =
-    `You are a friendly, concise personal-finance coach speaking directly to the user (use "you"). ` +
-    `All amounts are in Australian dollars (AUD). ` +
+    `You are a friendly personal-finance coach speaking directly to the user (use "you"). ` +
+    `They are new to budgeting and have no prior financial-management experience, so help them build real ` +
+    `awareness, not just see numbers. All amounts are in Australian dollars (AUD). ` +
     `They have $${input.startingAmount.toFixed(2)} for the next ${input.daysRemaining} days. ` +
     `$${input.committedSpend.toFixed(2)} is already committed to recurring bills, leaving them ` +
     `$${input.safeToSpend.toFixed(2)} a day to spend freely.${shortfallText} Write one short, encouraging message ` +
-    `(2-3 sentences) presenting this plan. Do not use markdown formatting.`;
+    `(3-4 sentences) presenting this plan, including a brief plain-language explanation of why a daily ` +
+    `safe-to-spend limit like this helps them stay in control. Do not use markdown formatting.`;
 
   try {
     return await callGemini(prompt);
@@ -78,11 +80,13 @@ export async function generateCheckInMessage(input: {
     ? ` Importantly: ${input.shortfallWarning}.`
     : '';
   const prompt =
-    `You are a friendly, concise personal-finance coach speaking directly to the user (use "you"). ` +
-    `All amounts are in Australian dollars (AUD). ` +
+    `You are a friendly personal-finance coach speaking directly to the user (use "you"). ` +
+    `They are new to budgeting and have no prior financial-management experience, so help them build real ` +
+    `awareness, not just see numbers. All amounts are in Australian dollars (AUD). ` +
     `They've spent $${input.spentSoFar.toFixed(2)} so far, with $${input.remainingAmount.toFixed(2)} left ` +
     `over ${input.daysRemaining} days (about $${input.safeToSpend.toFixed(2)}/day). Right now ${pacingHint}.` +
-    `${shortfallText} Write one short daily check-in message (2-3 sentences). Do not use markdown formatting.`;
+    `${shortfallText} Write one short daily check-in message (3-4 sentences): give the numbers, then briefly ` +
+    `explain in plain language what "pacing" means here and why it matters. Do not use markdown formatting.`;
 
   try {
     return await callGemini(prompt);
