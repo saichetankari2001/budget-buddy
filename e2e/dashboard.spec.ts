@@ -1,6 +1,18 @@
 import { test, expect } from '@playwright/test';
 
 test('signup, add an expense, and see it on the dashboard', async ({ page }) => {
+  // Extra headroom on the whole test, not just the signup assertion below: the consolidated
+  // /dashboard page this test loads now bundles what used to be four separate pages' worth of
+  // Prisma queries into one request (six-month expense aggregation, budgets, categories, the
+  // filtered-expenses query for the Expenses cell, income sources, bills), so it measurably takes
+  // longer to fully settle than any single original page did. Combined with real Neon free-tier
+  // latency, that can push this test past Playwright's 30s default test timeout even when nothing
+  // is actually broken (confirmed: the same run that timed out here showed a fully-rendered
+  // dashboard, including the "Add expense" button, in its final snapshot — and passed cleanly in
+  // 22s under a 60s timeout). Same reasoning as the existing extra headroom on the signup
+  // assertion just below, extended to the whole test now that the page it loads is heavier.
+  test.setTimeout(60_000);
+
   const email = `test-${Date.now()}@example.com`;
 
   await page.goto('/signup');
@@ -29,6 +41,14 @@ test('signup, add an expense, and see it on the dashboard', async ({ page }) => 
 });
 
 test('old page routes redirect to the matching section of the consolidated dashboard', async ({ page }) => {
+  // Same reasoning as the first test's test.setTimeout() above, with more headroom: this test
+  // does a signup, a Money Cycle start, AND three separate hard navigations to old routes, each
+  // one a full reload of the now-heavier consolidated /dashboard page. Empirically confirmed at
+  // risk under the default 30s test timeout — reproduced 3/3 timeouts in isolation before this
+  // fix (`page.goto('/budgets')` never resolving within the window), and reliably passing in
+  // 9.5–35.3s once given real headroom.
+  test.setTimeout(90_000);
+
   const email = `test-redirects-${Date.now()}@example.com`;
   await page.goto('/signup');
   await page.getByPlaceholder('Email').fill(email);
@@ -79,6 +99,12 @@ test.describe('expenses hydration', () => {
   test('expenses page reloaded with an existing expense hydrates without a server/client mismatch', async ({
     page,
   }) => {
+    // Same reasoning as the first test's test.setTimeout() above: this test signs up, adds an
+    // expense, then does a fresh hard navigation that reloads the now-heavier consolidated
+    // /dashboard page. Empirically at risk under the default 30s test timeout (reproduced a
+    // timeout 1/3 isolated runs before this fix) despite typically completing in 9-12s.
+    test.setTimeout(60_000);
+
     const email = `test-expenses-hydration-${Date.now()}@example.com`;
 
     await page.goto('/signup');
