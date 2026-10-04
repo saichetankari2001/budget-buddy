@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, FormEvent } from 'react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
 import { PushSubscribe } from '@/components/pwa/PushSubscribe';
 import { StartCycleForm } from './StartCycleForm';
@@ -121,7 +122,17 @@ export function CoachCard() {
   }
 
   if (cycle === undefined) {
-    return null; // loading — avoid a flash of the empty-state form before the fetch resolves
+    return (
+      <GlassPanel elevation={2} hoverable>
+        <Skeleton className="mb-4 h-5 w-32" />
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+        </div>
+        <Skeleton className="h-16 w-full" />
+      </GlassPanel>
+    );
   }
 
   if (cycle === 'error') {

@@ -6,7 +6,7 @@ import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
 import { Header } from '@/components/ui/Header';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
-import { CountUpStat } from '@/components/ui/CountUpStat';
+import { StatCard } from '@/components/ui/StatCard';
 import { BudgetProgress } from '@/components/ui/BudgetProgress';
 import { CoachCard } from '@/components/coach/CoachCard';
 import { SpendingBreakdownCard } from '@/components/dashboard/SpendingBreakdownCard';
@@ -62,6 +62,30 @@ export default async function DashboardPage({
   const gstPaidThisMonth = computeGstPaid(
     currentMonthExpenses.map((e) => ({ amount: e.amount, categoryIsGstFree: e.category.isGstFree }))
   );
+
+  // Daily cumulative running totals for the stat cards' embedded sparklines, from the 1st of the
+  // current month through today — reuses the same currentMonthExpenses data already computed
+  // above rather than a new query.
+  const dayOfMonth = now.getDate();
+  const dailySpendTotals = Array.from({ length: dayOfMonth }, () => 0);
+  const dailyGstExpenses: { amount: number; categoryIsGstFree: boolean }[][] = Array.from(
+    { length: dayOfMonth },
+    () => []
+  );
+  for (const e of currentMonthExpenses) {
+    const day = e.date.getDate();
+    if (day >= 1 && day <= dayOfMonth) {
+      dailySpendTotals[day - 1] += e.amount;
+      dailyGstExpenses[day - 1].push({ amount: e.amount, categoryIsGstFree: e.category.isGstFree });
+    }
+  }
+  let runningSpend = 0;
+  const spendTrend = dailySpendTotals.map((d) => (runningSpend += d));
+  let runningGstExpenses: { amount: number; categoryIsGstFree: boolean }[] = [];
+  const gstTrend = dailyGstExpenses.map((dayExpenses) => {
+    runningGstExpenses = [...runningGstExpenses, ...dayExpenses];
+    return computeGstPaid(runningGstExpenses);
+  });
 
   const budgets = await prisma.budget.findMany({
     where: { userId: user.userId },
@@ -155,12 +179,10 @@ export default async function DashboardPage({
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <GlassPanel elevation={2}>
-            <p className="text-sm text-muted">Total spent this month</p>
-            <CountUpStat value={totalThisMonth} />
+            <StatCard label="Total spent this month" value={totalThisMonth} trend={spendTrend} />
           </GlassPanel>
           <GlassPanel elevation={2}>
-            <p className="text-sm text-muted">GST paid this month</p>
-            <CountUpStat value={gstPaidThisMonth} />
+            <StatCard label="GST paid this month" value={gstPaidThisMonth} trend={gstTrend} />
           </GlassPanel>
 
           <div className="sm:col-span-2">

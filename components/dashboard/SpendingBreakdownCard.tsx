@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { GlassPanel } from '@/components/ui/GlassPanel';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useRealtimeCycleUpdates } from '@/hooks/useRealtimeCycleUpdates';
 
@@ -40,8 +41,21 @@ export function SpendingBreakdownCard() {
 
   useRealtimeCycleUpdates(refetch);
 
-  if (data === undefined || data === null) {
-    return null;
+  if (data === undefined) {
+    return (
+      <GlassPanel elevation={2} hoverable>
+        <Skeleton className="mb-1 h-5 w-40" />
+        <Skeleton className="mb-4 h-4 w-64" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Skeleton className="h-[200px]" />
+          <Skeleton className="h-[200px]" />
+        </div>
+      </GlassPanel>
+    );
+  }
+
+  if (data === null) {
+    return null; // no active cycle — nothing to show, not a loading state
   }
 
   if (data.categories.length === 0) {
