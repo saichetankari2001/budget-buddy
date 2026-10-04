@@ -153,6 +153,18 @@ test('cashflow page has no WCAG 2.1 A/AA violations', async ({ page }) => {
 test('cashflow page with an active cycle and a bill shows the projection list and has no WCAG 2.1 A/AA violations', async ({
   page,
 }) => {
+  // Same reasoning as the test.setTimeout() headroom added for the consolidated dashboard in
+  // e2e/dashboard.spec.ts: this test loads the heavier consolidated /dashboard page twice (once
+  // for the cycle start, once via the /cashflow -> /dashboard#cashflow redirect), then adds a
+  // bill, which triggers a bill-list refresh AND a full /api/cycles/active projection refetch —
+  // itself several sequential Prisma queries (expenses, bills, income sources, aggregates). Under
+  // real Neon free-tier latency this reliably failed the "Rent -$800.00" projection-row assertion
+  // on its default 10s timeout twice in CI (runs 37199547781, 37200415376) while the identical
+  // logic worked correctly locally — the bill's "Rent" entry itself rendered fine (an earlier
+  // assertion in this same test), only the heavier projection refetch was too slow for the
+  // default window, not a real product bug.
+  test.setTimeout(60_000);
+
   await signUp(page, 'a11y-cashflow-projection');
   // The projection list renders one row per day of the cycle, each playing the same fade-slide-in
   // opacity animation used by the income/bill rows above (see the "expenses page with a submitted
@@ -180,7 +192,9 @@ test('cashflow page with an active cycle and a bill shows the projection list an
   // Confirms the projection list actually rendered real day-by-day data (not the empty/prompt
   // state) before scanning: the bill's amount appears inline as an event on its due-date row,
   // which only exists once /api/cycles/active has returned a populated `projection` array.
-  await expect(page.getByText('Rent -$800.00')).toBeVisible();
+  // Extended timeout: this specific refetch is the slowest step in the test (see the
+  // test.setTimeout() comment above).
+  await expect(page.getByText('Rent -$800.00')).toBeVisible({ timeout: 20000 });
   // The visual flag the whole feature exists to surface — the lowest projected balance in the cycle.
   // Without this the test would pass on a projection that rendered rows but never flagged the dip.
   await expect(page.getByText('Lowest point')).toBeVisible();
