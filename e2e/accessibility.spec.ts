@@ -122,7 +122,12 @@ test('dashboard with a saved budget renders progress bars and has no WCAG 2.1 A/
   await signUp(page, 'a11y-budget-progress');
   await page.goto('/budgets');
 
-  const firstRow = page.locator('li').first();
+  // Scoped to #budgets: an unscoped page.locator('li').first() only ever happened to work because
+  // every other <li>-rendering section on the consolidated page is empty for a fresh signup — any
+  // future change adding content to an earlier list would silently break this test's intent
+  // without necessarily failing it. Matches the #expenses scoping pattern used elsewhere in this
+  // suite (see e2e/dashboard.spec.ts).
+  const firstRow = page.locator('#budgets').locator('li').first();
   const categoryName = (await firstRow.locator('span.font-medium').first().innerText()).trim();
   await firstRow.locator('input[type="number"]').fill('500');
   await firstRow.getByRole('button', { name: 'Save' }).click();

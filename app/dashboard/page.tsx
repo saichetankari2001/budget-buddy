@@ -81,10 +81,18 @@ export default async function DashboardPage({
     userId: user.userId,
   };
   if (searchParams.categoryId) expenseWhere.categoryId = searchParams.categoryId;
-  if (searchParams.from || searchParams.to) {
+  // Guard against malformed date strings in the URL: new Date('garbage') produces an Invalid
+  // Date, which Prisma then throws on — on this consolidated page that would crash the app's
+  // sole authenticated landing page, not just a single minor page, so an invalid bound is
+  // dropped rather than passed through.
+  const fromDate = searchParams.from ? new Date(searchParams.from) : undefined;
+  const toDate = searchParams.to ? new Date(searchParams.to) : undefined;
+  const validFromDate = fromDate && !isNaN(fromDate.getTime()) ? fromDate : undefined;
+  const validToDate = toDate && !isNaN(toDate.getTime()) ? toDate : undefined;
+  if (validFromDate || validToDate) {
     expenseWhere.date = {
-      ...(searchParams.from ? { gte: new Date(searchParams.from) } : {}),
-      ...(searchParams.to ? { lte: new Date(searchParams.to) } : {}),
+      ...(validFromDate ? { gte: validFromDate } : {}),
+      ...(validToDate ? { lte: validToDate } : {}),
     };
   }
 
@@ -189,17 +197,17 @@ export default async function DashboardPage({
             </GlassPanel>
           </div>
 
-          <div id="cashflow" className="sm:col-span-2">
-            <GlassPanel elevation={1}>
-              <h2 className="mb-3 font-heading font-medium text-foreground">Cash Flow</h2>
-              <CashFlowClient initialIncomeSources={serializedIncomeSources} initialBills={serializedBills} />
-            </GlassPanel>
-          </div>
-
           <div id="budgets" className="sm:col-span-2">
             <GlassPanel elevation={1}>
               <h2 className="mb-3 font-heading font-medium text-foreground">Manage budgets</h2>
               <BudgetsClient rows={budgetRows} />
+            </GlassPanel>
+          </div>
+
+          <div id="cashflow" className="sm:col-span-2">
+            <GlassPanel elevation={1}>
+              <h2 className="mb-3 font-heading font-medium text-foreground">Cash Flow</h2>
+              <CashFlowClient initialIncomeSources={serializedIncomeSources} initialBills={serializedBills} />
             </GlassPanel>
           </div>
         </div>

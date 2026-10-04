@@ -37,7 +37,14 @@ test('signup, add an expense, and see it on the dashboard', async ({ page }) => 
 
   await expect(page.getByText('Test lunch')).toBeVisible();
 
-  await expect(page.getByText('$42.50')).toBeVisible();
+  await page.goto('/dashboard');
+  // Scoped to the "Total spent this month" stat card: an unscoped getByText('$42.50') would also
+  // match the just-added expense row's own amount text in the Expenses cell below, so it could
+  // never actually fail even if the stat card itself were broken. Matches the scoping pattern
+  // already used elsewhere in this file/suite (e.g. the Budget progress heading scoping in
+  // e2e/accessibility.spec.ts).
+  const totalSpentCard = page.getByText('Total spent this month').locator('..');
+  await expect(totalSpentCard.getByText('$42.50')).toBeVisible();
 });
 
 test('old page routes redirect to the matching section of the consolidated dashboard', async ({ page }) => {
