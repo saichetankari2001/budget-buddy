@@ -5,6 +5,7 @@ import {
   computeBillOccurrences,
   computeSafeToSpend,
   computePacingStatus,
+  computePacingRates,
   buildFallbackPlanMessage,
   buildFallbackCheckInMessage,
   startOfSydneyDay,
@@ -142,6 +143,28 @@ describe('computePacingStatus', () => {
   it('treats daysElapsed of 0 as day 1 to avoid divide-by-zero on the cycle-start day', () => {
     const result = computePacingStatus({ startingAmount: 500, spentSoFar: 10, daysElapsed: 0, totalDays: 10 });
     expect(result).toBe('ON_TRACK');
+  });
+});
+
+describe('computePacingRates', () => {
+  it('returns the planned and actual per-day rates alongside the status', () => {
+    const result = computePacingRates({ startingAmount: 500, spentSoFar: 150, daysElapsed: 2, totalDays: 10 });
+    expect(result.plannedRatePerDay).toBe(50);
+    expect(result.actualRatePerDay).toBe(75);
+    expect(result.status).toBe('OVER_PACE');
+  });
+
+  it('reports ON_TRACK with matching rates when spend is exactly at the planned pace', () => {
+    const result = computePacingRates({ startingAmount: 500, spentSoFar: 100, daysElapsed: 2, totalDays: 10 });
+    expect(result.plannedRatePerDay).toBe(50);
+    expect(result.actualRatePerDay).toBe(50);
+    expect(result.status).toBe('ON_TRACK');
+  });
+
+  it('treats daysElapsed of 0 as day 1 to avoid divide-by-zero on the cycle-start day', () => {
+    const result = computePacingRates({ startingAmount: 500, spentSoFar: 10, daysElapsed: 0, totalDays: 10 });
+    expect(result.actualRatePerDay).toBe(10);
+    expect(result.status).toBe('ON_TRACK');
   });
 });
 

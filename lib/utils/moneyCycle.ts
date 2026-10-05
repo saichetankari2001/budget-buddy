@@ -89,16 +89,26 @@ export function computeSafeToSpend(input: {
   return discretionary / input.daysRemaining;
 }
 
+export function computePacingRates(input: {
+  startingAmount: number;
+  spentSoFar: number;
+  daysElapsed: number;
+  totalDays: number;
+}): { plannedRatePerDay: number; actualRatePerDay: number; status: 'ON_TRACK' | 'OVER_PACE' } {
+  const plannedRatePerDay = input.startingAmount / input.totalDays;
+  const effectiveDaysElapsed = Math.max(input.daysElapsed, 1);
+  const actualRatePerDay = input.spentSoFar / effectiveDaysElapsed;
+  const status = actualRatePerDay > plannedRatePerDay ? 'OVER_PACE' : 'ON_TRACK';
+  return { plannedRatePerDay, actualRatePerDay, status };
+}
+
 export function computePacingStatus(input: {
   startingAmount: number;
   spentSoFar: number;
   daysElapsed: number;
   totalDays: number;
 }): 'ON_TRACK' | 'OVER_PACE' {
-  const plannedRatePerDay = input.startingAmount / input.totalDays;
-  const effectiveDaysElapsed = Math.max(input.daysElapsed, 1);
-  const actualRatePerDay = input.spentSoFar / effectiveDaysElapsed;
-  return actualRatePerDay > plannedRatePerDay ? 'OVER_PACE' : 'ON_TRACK';
+  return computePacingRates(input).status;
 }
 
 export function buildFallbackPlanMessage(input: {
