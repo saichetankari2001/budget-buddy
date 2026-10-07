@@ -5,6 +5,7 @@ import { createExpenseSchema, expenseFiltersSchema } from '@/lib/validation/expe
 import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { checkCategoryThresholdAndNotify } from '@/lib/moneyCycle/categoryThresholdNotifications';
+import { checkExpenseAnomalyAndNotify } from '@/lib/moneyCycle/expenseAnomalyNotifications';
 import { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
@@ -70,6 +71,11 @@ export async function POST(request: NextRequest) {
     });
 
     await checkCategoryThresholdAndNotify(user.userId, categoryId);
+    await checkExpenseAnomalyAndNotify(user.userId, categoryId, {
+      id: expense.id,
+      amount: Number(expense.amount),
+      description: expense.description,
+    });
 
     return NextResponse.json({ ...expense, amount: Number(expense.amount) }, { status: 201 });
   } catch (error) {

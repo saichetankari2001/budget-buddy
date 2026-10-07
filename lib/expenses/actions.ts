@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { checkCategoryThresholdAndNotify } from '@/lib/moneyCycle/categoryThresholdNotifications';
+import { checkExpenseAnomalyAndNotify } from '@/lib/moneyCycle/expenseAnomalyNotifications';
 
 type ActionResult<T = object> = ({ success: true } & T) | { success: false; error: string };
 
@@ -46,6 +47,11 @@ export async function logExpense(
   // creation itself if the threshold check or push send throws (checkCategoryThresholdAndNotify
   // already wraps its own body in try/catch).
   await checkCategoryThresholdAndNotify(userId, matched.id);
+  await checkExpenseAnomalyAndNotify(userId, matched.id, {
+    id: expense.id,
+    amount: input.amount,
+    description: expense.description,
+  });
 
   return { success: true, id: expense.id, categoryName: matched.name };
 }

@@ -7,6 +7,10 @@ vi.mock('@/lib/moneyCycle/categoryThresholdNotifications', () => ({
   checkCategoryThresholdAndNotify: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/lib/moneyCycle/expenseAnomalyNotifications', () => ({
+  checkExpenseAnomalyAndNotify: vi.fn().mockResolvedValue(undefined),
+}));
+
 const categories = [
   { id: 'cat_food', userId: 'user_1', name: 'Food', color: '#f97316', isGstFree: false, createdAt: new Date() },
   { id: 'cat_other', userId: 'user_1', name: 'Other', color: '#6b7280', isGstFree: false, createdAt: new Date() },
@@ -70,6 +74,20 @@ describe('logExpense', () => {
     await logExpense('user_1', { amount: 20, description: 'Groceries', categoryName: 'Food' });
 
     expect(checkCategoryThresholdAndNotify).toHaveBeenCalledWith('user_1', 'cat_food');
+  });
+
+  it('calls checkExpenseAnomalyAndNotify with the new expense after creating it', async () => {
+    const { checkExpenseAnomalyAndNotify } = await import('@/lib/moneyCycle/expenseAnomalyNotifications');
+    prismaMock.category.findMany.mockResolvedValue(categories as never);
+    prismaMock.expense.create.mockResolvedValue({ id: 'exp_1', description: 'Groceries' } as never);
+
+    await logExpense('user_1', { amount: 20, description: 'Groceries', categoryName: 'Food' });
+
+    expect(checkExpenseAnomalyAndNotify).toHaveBeenCalledWith('user_1', 'cat_food', {
+      id: 'exp_1',
+      amount: 20,
+      description: 'Groceries',
+    });
   });
 
   it('defaults the expense date to now when none is given', async () => {

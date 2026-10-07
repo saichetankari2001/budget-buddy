@@ -11,6 +11,10 @@ vi.mock('@/lib/moneyCycle/categoryThresholdNotifications', () => ({
   checkCategoryThresholdAndNotify: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/lib/moneyCycle/expenseAnomalyNotifications', () => ({
+  checkExpenseAnomalyAndNotify: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { getCurrentUser } from '@/lib/auth/session';
 import { GET, POST } from './route';
 
@@ -209,5 +213,29 @@ describe('POST /api/expenses', () => {
     );
 
     expect(checkCategoryThresholdAndNotify).toHaveBeenCalledWith('user_1', 'cat_1');
+  });
+
+  it('calls checkExpenseAnomalyAndNotify with the new expense after creating it', async () => {
+    const { checkExpenseAnomalyAndNotify } = await import('@/lib/moneyCycle/expenseAnomalyNotifications');
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.category.findFirst.mockResolvedValue({ id: 'cat_1', userId: 'user_1' } as never);
+    prismaMock.expense.create.mockResolvedValue({
+      id: 'exp_1', amount: { toString: () => '20.00' } as never, description: 'Groceries', categoryId: 'cat_1', date: new Date(),
+    } as never);
+
+    await POST(
+      new NextRequest('http://localhost/api/expenses', {
+        method: 'POST',
+        body: JSON.stringify({
+          amount: 20, description: 'Groceries', categoryId: 'cat_1', date: '2026-09-15T00:00:00.000Z',
+        }),
+      })
+    );
+
+    expect(checkExpenseAnomalyAndNotify).toHaveBeenCalledWith('user_1', 'cat_1', {
+      id: 'exp_1',
+      amount: 20,
+      description: 'Groceries',
+    });
   });
 });
