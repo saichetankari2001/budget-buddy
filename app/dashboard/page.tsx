@@ -174,8 +174,12 @@ export default async function DashboardPage({
   // Prisma + computeHealthScore, not through the /api/cycles/active route — since this page
   // already assembles every other dashboard figure server-side. No existing query on this page
   // already fetches the active cycle, so this is a new lookup rather than a reused variable.
-  let healthScoreValue = 100;
+  let healthScoreValue = 0;
   let healthScoreTrend: number[] = [];
+  // No active cycle yet (e.g. a brand-new signup) means there's no real data behind a score —
+  // showing a perfect 100 in that state would be a misleading "black box" number, exactly what
+  // this feature exists to avoid. The dashboard renders an em-dash instead when this is false.
+  let hasHealthScore = false;
   const activeCycle = await prisma.moneyCycle.findFirst({ where: { userId: user.userId, status: 'ACTIVE' } });
   if (activeCycle) {
     const currentScore = await computeHealthScore(
@@ -216,6 +220,7 @@ export default async function DashboardPage({
     );
     healthScoreValue = currentScore.total;
     healthScoreTrend = [...pastScores.map((s) => s.total), currentScore.total];
+    hasHealthScore = true;
   }
 
   return (
@@ -235,7 +240,16 @@ export default async function DashboardPage({
               <StatCard label="GST paid this month" value={gstPaidThisMonth} trend={gstTrend} />
             </GlassPanel>
             <GlassPanel elevation={2}>
-              <StatCard label="Financial health" value={healthScoreValue} trend={healthScoreTrend} format="number" />
+              {hasHealthScore ? (
+                <StatCard label="Financial health" value={healthScoreValue} trend={healthScoreTrend} format="number" />
+              ) : (
+                <div>
+                  <p className="text-sm text-muted">Financial health</p>
+                  <p className="inline-block bg-gradient-to-r from-primary to-accent bg-clip-text font-mono text-3xl font-semibold text-transparent">
+                    —
+                  </p>
+                </div>
+              )}
             </GlassPanel>
           </div>
 
