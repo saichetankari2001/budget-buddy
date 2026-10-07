@@ -181,6 +181,13 @@ describe('buildFallbackPlanMessage', () => {
     expect(message).toContain('10 days');
     expect(message).toContain('$30.00');
   });
+
+  it('includes the previous cycle score when present', () => {
+    const message = buildFallbackPlanMessage({
+      startingAmount: 500, committedSpend: 200, daysRemaining: 10, safeToSpend: 30, previousCycleScore: 78,
+    });
+    expect(message).toContain('78');
+  });
 });
 
 describe('buildFallbackCheckInMessage', () => {
@@ -204,5 +211,13 @@ describe('buildFallbackCheckInMessage', () => {
       pacingStatus: 'ON_TRACK',
     });
     expect(message.toLowerCase()).toContain('track');
+  });
+
+  it('includes the health score when present', () => {
+    const message = buildFallbackCheckInMessage({
+      spentSoFar: 150, remainingAmount: 350, daysRemaining: 8, safeToSpend: 43.75, pacingStatus: 'ON_TRACK',
+      healthScore: { total: 82, delta: 5 },
+    });
+    expect(message).toContain('82');
   });
 });

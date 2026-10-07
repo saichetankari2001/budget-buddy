@@ -6,6 +6,7 @@ import { createMoneyCycleSchema } from '@/lib/validation/moneyCycle.schema';
 import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { generatePlanMessage } from '@/lib/ai/coach';
+import { computeHealthScore } from '@/lib/health/computeHealthScore';
 import { projectCycle } from '@/lib/moneyCycle/projectCycle';
 import { publishCycleUpdate } from '@/lib/realtime/publish';
 import { aggregateByCategory } from '@/lib/utils/expenseAggregation';
@@ -67,12 +68,34 @@ export async function POST(request: NextRequest) {
     ];
     const recommendation = computeCategoryRecommendation(zeroFilledHistory, discretionaryPool);
 
+    const priorCycle = await prisma.moneyCycle.findFirst({
+      where: { userId: user.userId, status: { in: ['COMPLETED', 'CANCELLED'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const previousCycleScore = priorCycle
+      ? (
+          await computeHealthScore(
+            user.userId,
+            {
+              id: priorCycle.id,
+              startDate: priorCycle.startDate,
+              endDate: priorCycle.endDate,
+              createdAt: priorCycle.createdAt,
+              status: priorCycle.status,
+              startingAmount: Number(priorCycle.startingAmount),
+            },
+            priorCycle.endDate
+          )
+        ).total
+      : undefined;
+
     const planMessageText = await generatePlanMessage({
       startingAmount,
       committedSpend,
       daysRemaining,
       safeToSpend,
       shortfallWarning,
+      previousCycleScore,
     });
 
     let result;

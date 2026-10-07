@@ -21,6 +21,11 @@ describe('POST /api/cron/coach-checkin', () => {
     prismaMock.bill.findMany.mockResolvedValue([]);
     prismaMock.incomeSource.findMany.mockResolvedValue([]);
     prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    // generateCheckInMessage's input now also carries a live health score (Task 7), computed via
+    // computeHealthScore — these are its own queries' "nothing else going on" defaults. No prior
+    // completed/cancelled cycle by default, so the delta is null unless a test says otherwise.
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(null);
   });
 
   afterEach(() => {

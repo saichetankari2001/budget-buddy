@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { generateCheckInMessage } from '@/lib/ai/coach';
+import { computeHealthScore } from '@/lib/health/computeHealthScore';
 import { sendPushNotification } from '@/lib/push/send';
 import { computeDaysRemaining, computePacingStatus } from '@/lib/utils/moneyCycle';
 import { projectCycle } from '@/lib/moneyCycle/projectCycle';
@@ -72,6 +73,40 @@ async function handleCheckIn(request: NextRequest) {
         );
         const pacingStatus = computePacingStatus({ startingAmount, spentSoFar, daysElapsed, totalDays });
 
+        const currentScore = await computeHealthScore(
+          cycle.userId,
+          {
+            id: cycle.id,
+            startDate: cycle.startDate,
+            endDate: cycle.endDate,
+            createdAt: cycle.createdAt,
+            status: cycle.status,
+            startingAmount,
+          },
+          now
+        );
+        const priorCycle = await prisma.moneyCycle.findFirst({
+          where: { userId: cycle.userId, status: { in: ['COMPLETED', 'CANCELLED'] } },
+          orderBy: { createdAt: 'desc' },
+        });
+        const previousTotal = priorCycle
+          ? (
+              await computeHealthScore(
+                cycle.userId,
+                {
+                  id: priorCycle.id,
+                  startDate: priorCycle.startDate,
+                  endDate: priorCycle.endDate,
+                  createdAt: priorCycle.createdAt,
+                  status: priorCycle.status,
+                  startingAmount: Number(priorCycle.startingAmount),
+                },
+                priorCycle.endDate
+              )
+            ).total
+          : null;
+        const healthScore = { total: currentScore.total, delta: previousTotal !== null ? currentScore.total - previousTotal : null };
+
         const content = await generateCheckInMessage({
           spentSoFar,
           remainingAmount,
@@ -79,6 +114,7 @@ async function handleCheckIn(request: NextRequest) {
           safeToSpend,
           pacingStatus,
           shortfallWarning,
+          healthScore,
         });
 
         await prisma.coachMessage.create({ data: { cycleId: cycle.id, kind: 'CHECK_IN', content } });

@@ -82,6 +82,20 @@ describe('generatePlanMessage', () => {
     const result = await generatePlanMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
     expect(result).toContain("you're projected to be short before rent clears on the 30th");
   });
+
+  it('includes the previous cycle score in the prompt sent to Gemini when present', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+    } as Response);
+
+    await generatePlanMessage({ ...input, previousCycleScore: 78 });
+
+    const [, options] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(options!.body as string);
+    const prompt = body.contents[0].parts[0].text;
+    expect(prompt).toContain('78');
+  });
 });
 
 describe('generateCheckInMessage', () => {
@@ -153,5 +167,20 @@ describe('generateCheckInMessage', () => {
 
     const result = await generateCheckInMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
     expect(result).toContain("you're projected to be short before rent clears on the 30th");
+  });
+
+  it('includes the health score and delta in the prompt sent to Gemini when present', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+    } as Response);
+
+    await generateCheckInMessage({ ...input, healthScore: { total: 82, delta: 5 } });
+
+    const [, options] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(options!.body as string);
+    const prompt = body.contents[0].parts[0].text;
+    expect(prompt).toContain('82');
+    expect(prompt).toContain('5');
   });
 });

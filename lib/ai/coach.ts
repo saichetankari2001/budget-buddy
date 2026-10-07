@@ -43,19 +43,24 @@ export async function generatePlanMessage(input: {
   daysRemaining: number;
   safeToSpend: number;
   shortfallWarning?: string;
+  previousCycleScore?: number;
 }): Promise<string> {
   const shortfallText = input.shortfallWarning
     ? ` Importantly: ${input.shortfallWarning}.`
     : '';
+  const scoreText =
+    input.previousCycleScore !== undefined
+      ? ` Last cycle, your financial health score was ${input.previousCycleScore} out of 100.`
+      : '';
   const prompt =
     `You are a friendly personal-finance coach speaking directly to the user (use "you"). ` +
     `They are new to budgeting and have no prior financial-management experience, so help them build real ` +
     `awareness, not just see numbers. All amounts are in Australian dollars (AUD). ` +
     `They have $${input.startingAmount.toFixed(2)} for the next ${input.daysRemaining} days. ` +
     `$${input.committedSpend.toFixed(2)} is already committed to recurring bills, leaving them ` +
-    `$${input.safeToSpend.toFixed(2)} a day to spend freely.${shortfallText} Write one short, encouraging message ` +
-    `(3-4 sentences) presenting this plan, including a brief plain-language explanation of why a daily ` +
-    `safe-to-spend limit like this helps them stay in control. Do not use markdown formatting.`;
+    `$${input.safeToSpend.toFixed(2)} a day to spend freely.${shortfallText}${scoreText} Write one short, ` +
+    `encouraging message (3-4 sentences) presenting this plan, including a brief plain-language explanation ` +
+    `of why a daily safe-to-spend limit like this helps them stay in control. Do not use markdown formatting.`;
 
   try {
     return await callGemini(prompt);
@@ -71,6 +76,7 @@ export async function generateCheckInMessage(input: {
   safeToSpend: number;
   pacingStatus: 'ON_TRACK' | 'OVER_PACE';
   shortfallWarning?: string;
+  healthScore?: { total: number; delta: number | null };
 }): Promise<string> {
   const pacingHint =
     input.pacingStatus === 'OVER_PACE'
@@ -79,14 +85,22 @@ export async function generateCheckInMessage(input: {
   const shortfallText = input.shortfallWarning
     ? ` Importantly: ${input.shortfallWarning}.`
     : '';
+  const scoreText = input.healthScore
+    ? ` Their financial health score is ${input.healthScore.total} out of 100${
+        input.healthScore.delta !== null
+          ? `, ${input.healthScore.delta >= 0 ? 'up' : 'down'} ${Math.abs(input.healthScore.delta)} points since last cycle`
+          : ''
+      }.`
+    : '';
   const prompt =
     `You are a friendly personal-finance coach speaking directly to the user (use "you"). ` +
     `They are new to budgeting and have no prior financial-management experience, so help them build real ` +
     `awareness, not just see numbers. All amounts are in Australian dollars (AUD). ` +
     `They've spent $${input.spentSoFar.toFixed(2)} so far, with $${input.remainingAmount.toFixed(2)} left ` +
     `over ${input.daysRemaining} days (about $${input.safeToSpend.toFixed(2)}/day). Right now ${pacingHint}.` +
-    `${shortfallText} Write one short daily check-in message (3-4 sentences): give the numbers, then briefly ` +
-    `explain in plain language what "pacing" means here and why it matters. Do not use markdown formatting.`;
+    `${shortfallText}${scoreText} Write one short daily check-in message (3-4 sentences): give the numbers, ` +
+    `then briefly explain in plain language what "pacing" means here and why it matters. If their health ` +
+    `score changed, mention what it means in one plain-language phrase. Do not use markdown formatting.`;
 
   try {
     return await callGemini(prompt);
