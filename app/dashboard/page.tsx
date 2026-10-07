@@ -227,15 +227,17 @@ export default async function DashboardPage({
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Dashboard</h1>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <GlassPanel elevation={2}>
-            <StatCard label="Total spent this month" value={totalThisMonth} trend={spendTrend} />
-          </GlassPanel>
-          <GlassPanel elevation={2}>
-            <StatCard label="GST paid this month" value={gstPaidThisMonth} trend={gstTrend} />
-          </GlassPanel>
-          <GlassPanel elevation={2}>
-            <StatCard label="Financial health" value={healthScoreValue} trend={healthScoreTrend} format="number" />
-          </GlassPanel>
+          <div className="col-span-1 grid grid-cols-1 gap-6 sm:col-span-2 sm:grid-cols-3">
+            <GlassPanel elevation={2}>
+              <StatCard label="Total spent this month" value={totalThisMonth} trend={spendTrend} />
+            </GlassPanel>
+            <GlassPanel elevation={2}>
+              <StatCard label="GST paid this month" value={gstPaidThisMonth} trend={gstTrend} />
+            </GlassPanel>
+            <GlassPanel elevation={2}>
+              <StatCard label="Financial health" value={healthScoreValue} trend={healthScoreTrend} format="number" />
+            </GlassPanel>
+          </div>
 
           <div className="sm:col-span-2">
             <CoachCard />

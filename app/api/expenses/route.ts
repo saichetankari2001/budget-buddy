@@ -70,12 +70,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await checkCategoryThresholdAndNotify(user.userId, categoryId);
-    await checkExpenseAnomalyAndNotify(user.userId, categoryId, {
-      id: expense.id,
-      amount: Number(expense.amount),
-      description: expense.description,
-    });
+    await Promise.all([
+      checkCategoryThresholdAndNotify(user.userId, categoryId),
+      checkExpenseAnomalyAndNotify(user.userId, categoryId, {
+        id: expense.id,
+        amount: Number(expense.amount),
+        description: expense.description,
+      }),
+    ]);
 
     return NextResponse.json({ ...expense, amount: Number(expense.amount) }, { status: 201 });
   } catch (error) {

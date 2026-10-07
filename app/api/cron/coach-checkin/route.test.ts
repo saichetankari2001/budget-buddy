@@ -84,6 +84,58 @@ describe('POST /api/cron/coach-checkin', () => {
     expect(sendPushNotification).toHaveBeenCalledTimes(1);
   });
 
+  it('passes a numeric healthScore.delta to generateCheckInMessage when a real prior completed cycle exists', async () => {
+    process.env.CRON_SECRET = 'test-secret';
+    prismaMock.moneyCycle.findMany.mockResolvedValue([
+      {
+        id: 'cycle_1',
+        userId: 'user_1',
+        startingAmount: { toString: () => '500.00' } as never,
+        startDate: new Date('2026-09-10T00:00:00.000Z'),
+        endDate: new Date('2026-09-20T00:00:00.000Z'),
+        status: 'ACTIVE',
+        createdAt: new Date('2026-09-10T00:00:00.000Z'),
+      } as never,
+    ]);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: { toString: () => '100.00' } } } as never);
+    // Overrides this file's shared beforeEach default of null (no prior cycle) with a real,
+    // previously COMPLETED cycle — this is the prior-cycle lookup the route uses for the health
+    // score's trend delta, not the active-cycles-to-process query above (that one uses findMany).
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({
+      id: 'cycle_old',
+      userId: 'user_1',
+      startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-08-01T00:00:00.000Z'),
+      endDate: new Date('2026-08-11T00:00:00.000Z'),
+      status: 'COMPLETED',
+      createdAt: new Date('2026-08-01T00:00:00.000Z'),
+    } as never);
+    vi.mocked(generateCheckInMessage).mockResolvedValue('Checking in!');
+    prismaMock.coachMessage.create.mockResolvedValue({
+      id: 'msg_delta',
+      cycleId: 'cycle_1',
+      kind: 'CHECK_IN',
+      content: 'Checking in!',
+      createdAt: new Date(),
+    } as never);
+    prismaMock.pushSubscription.findMany.mockResolvedValue([]);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cron/coach-checkin', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-secret' },
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const checkInInput = vi.mocked(generateCheckInMessage).mock.calls[0][0];
+    // With the shared beforeEach default (null prior cycle), this is always null (covered by the
+    // "creates a check-in message..." test above). With a real prior cycle, it must be a number.
+    expect(checkInInput.healthScore).toBeDefined();
+    expect(typeof checkInInput.healthScore?.delta).toBe('number');
+  });
+
   it('warns about a real projected shortfall instead of telling the user they are on track', async () => {
     // THE regression test for this whole fix. The cron's old flat-average calculation could not see
     // Bill rows at all, so a user with a $735 bill landing inside a $100 cycle got a cheerful "you're

@@ -45,13 +45,16 @@ export async function logExpense(
 
   // Matches POST /api/expenses's own contract exactly: fire-and-forget, never fails the expense
   // creation itself if the threshold check or push send throws (checkCategoryThresholdAndNotify
-  // already wraps its own body in try/catch).
-  await checkCategoryThresholdAndNotify(userId, matched.id);
-  await checkExpenseAnomalyAndNotify(userId, matched.id, {
-    id: expense.id,
-    amount: input.amount,
-    description: expense.description,
-  });
+  // already wraps its own body in try/catch). Neither check depends on the other, so they run
+  // concurrently rather than adding their latencies together.
+  await Promise.all([
+    checkCategoryThresholdAndNotify(userId, matched.id),
+    checkExpenseAnomalyAndNotify(userId, matched.id, {
+      id: expense.id,
+      amount: input.amount,
+      description: expense.description,
+    }),
+  ]);
 
   return { success: true, id: expense.id, categoryName: matched.name };
 }

@@ -47,6 +47,26 @@ describe('computeHealthScore', () => {
     expect(result.budgetAdherence.worstCategoryName).toBe('Fuel');
   });
 
+  it('picks the category that is MORE over budget as worstCategoryName, not just whichever row comes first', async () => {
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([
+      { id: 'ccb_1', cycleId: 'cycle_1', categoryId: 'cat_food', categoryName: 'Food', categoryColor: '#f97316', recommendedAmount: { toString: () => '100.00' } as never, notifiedAt80: null, notifiedAt100: null, createdAt: new Date() },
+      { id: 'ccb_2', cycleId: 'cycle_1', categoryId: 'cat_fuel', categoryName: 'Fuel', categoryColor: '#22d3ee', recommendedAmount: { toString: () => '100.00' } as never, notifiedAt80: null, notifiedAt100: null, createdAt: new Date() },
+    ] as never);
+    // Food: $110 spent against a $100 budget -> 110% of recommended (over, but only slightly).
+    // Fuel: $500 spent against a $100 budget -> 500% of recommended (far more over budget).
+    // Both clamp to the same 0-points `unusedFraction`, but the unclamped ratio must still pick
+    // Fuel as the worst offender, not just whichever row the mock happens to return first.
+    prismaMock.expense.findMany.mockResolvedValue([
+      { categoryId: 'cat_food', amount: { toString: () => '110.00' } as never },
+      { categoryId: 'cat_fuel', amount: { toString: () => '500.00' } as never },
+    ] as never);
+    mockNoBills();
+
+    const result = await computeHealthScore('user_1', activeCycle, now);
+
+    expect(result.budgetAdherence.worstCategoryName).toBe('Fuel');
+  });
+
   it('awards full pacing marks when on track, and partial marks when over pace', async () => {
     prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]);
     mockNoBills();

@@ -42,6 +42,31 @@ describe('checkExpenseAnomalyAndNotify', () => {
     expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
+  it('is eligible to fire with exactly 3 prior expenses, the minimum (not skipped as "too few")', async () => {
+    prismaMock.expense.findMany.mockResolvedValue(priorExpenses([20, 25, 30]) as never); // avg 25, threshold 62.50
+    prismaMock.pushSubscription.findMany.mockResolvedValue([
+      { id: 'sub_1', userId: 'user_1', endpoint: 'https://push.example/1', p256dh: 'p', auth: 'a', createdAt: new Date() },
+    ] as never);
+
+    await checkExpenseAnomalyAndNotify('user_1', 'cat_food', { id: 'exp_new', amount: 100, description: 'Big order' });
+
+    // Pins the MIN_PRIOR_EXPENSES boundary itself: 3 priors must be enough to be considered (as
+    // opposed to the 2-priors case above, which is skipped outright). Separate from the "fires"
+    // test below, which is about the >= threshold math, not the prior-count boundary.
+    expect(sendPushNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires when the new expense is exactly 2.5x the average (the ">=" boundary, not just "> ")', async () => {
+    prismaMock.expense.findMany.mockResolvedValue(priorExpenses([20, 25, 30]) as never); // avg 25, threshold exactly 62.50
+    prismaMock.pushSubscription.findMany.mockResolvedValue([
+      { id: 'sub_1', userId: 'user_1', endpoint: 'https://push.example/1', p256dh: 'p', auth: 'a', createdAt: new Date() },
+    ] as never);
+
+    await checkExpenseAnomalyAndNotify('user_1', 'cat_food', { id: 'exp_new', amount: 62.5, description: 'Exactly at threshold' });
+
+    expect(sendPushNotification).toHaveBeenCalledTimes(1);
+  });
+
   it('fires with the baseline and category in the message when the new expense is >= 2.5x the average', async () => {
     prismaMock.expense.findMany.mockResolvedValue(priorExpenses([20, 25, 30]) as never); // avg 25, threshold 62.50
     prismaMock.pushSubscription.findMany.mockResolvedValue([
