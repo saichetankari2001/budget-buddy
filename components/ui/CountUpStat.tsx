@@ -6,7 +6,7 @@ import { formatCurrency } from '@/lib/utils/currency';
 
 const DURATION_MS = 600;
 
-export function CountUpStat({ value }: { value: number }) {
+export function CountUpStat({ value, format = 'currency' }: { value: number; format?: 'currency' | 'number' }) {
   const [display, setDisplay] = useState(0);
   const startRef = useRef<number | null>(null);
 
@@ -34,7 +34,7 @@ export function CountUpStat({ value }: { value: number }) {
 
   return (
     <p className="inline-block bg-gradient-to-r from-primary to-accent bg-clip-text font-mono text-3xl font-semibold text-transparent">
-      {formatCurrency(display)}
+      {format === 'currency' ? formatCurrency(display) : Math.round(display)}
     </p>
   );
 }

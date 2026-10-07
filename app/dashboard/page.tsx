@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth/session';
+import { computeHealthScore } from '@/lib/health/computeHealthScore';
 import { aggregateByCategory, aggregateByMonth } from '@/lib/utils/expenseAggregation';
 import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
 import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
@@ -169,6 +170,54 @@ export default async function DashboardPage({
     isGstFree: category.isGstFree,
   }));
 
+  // Financial health stat cell: computed the same way the Coach feature does — directly via
+  // Prisma + computeHealthScore, not through the /api/cycles/active route — since this page
+  // already assembles every other dashboard figure server-side. No existing query on this page
+  // already fetches the active cycle, so this is a new lookup rather than a reused variable.
+  let healthScoreValue = 100;
+  let healthScoreTrend: number[] = [];
+  const activeCycle = await prisma.moneyCycle.findFirst({ where: { userId: user.userId, status: 'ACTIVE' } });
+  if (activeCycle) {
+    const currentScore = await computeHealthScore(
+      user.userId,
+      {
+        id: activeCycle.id,
+        startDate: activeCycle.startDate,
+        endDate: activeCycle.endDate,
+        createdAt: activeCycle.createdAt,
+        status: activeCycle.status,
+        startingAmount: Number(activeCycle.startingAmount),
+      },
+      new Date()
+    );
+    const recentPastCycles = await prisma.moneyCycle.findMany({
+      where: { userId: user.userId, status: { in: ['COMPLETED', 'CANCELLED'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 4,
+    });
+    const pastScores = await Promise.all(
+      recentPastCycles
+        .slice()
+        .reverse()
+        .map((c) =>
+          computeHealthScore(
+            user.userId,
+            {
+              id: c.id,
+              startDate: c.startDate,
+              endDate: c.endDate,
+              createdAt: c.createdAt,
+              status: c.status,
+              startingAmount: Number(c.startingAmount),
+            },
+            c.endDate
+          )
+        )
+    );
+    healthScoreValue = currentScore.total;
+    healthScoreTrend = [...pastScores.map((s) => s.total), currentScore.total];
+  }
+
   return (
     <>
       <Header />
@@ -183,6 +232,9 @@ export default async function DashboardPage({
           </GlassPanel>
           <GlassPanel elevation={2}>
             <StatCard label="GST paid this month" value={gstPaidThisMonth} trend={gstTrend} />
+          </GlassPanel>
+          <GlassPanel elevation={2}>
+            <StatCard label="Financial health" value={healthScoreValue} trend={healthScoreTrend} format="number" />
           </GlassPanel>
 
           <div className="sm:col-span-2">

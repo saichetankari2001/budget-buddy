@@ -3,13 +3,23 @@
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { CountUpStat } from './CountUpStat';
 
-export function StatCard({ label, value, trend }: { label: string; value: number; trend: number[] }) {
+export function StatCard({
+  label,
+  value,
+  trend,
+  format = 'currency',
+}: {
+  label: string;
+  value: number;
+  trend: number[];
+  format?: 'currency' | 'number';
+}) {
   const chartData = trend.map((v, i) => ({ i, v }));
 
   return (
     <div>
       <p className="text-sm text-muted">{label}</p>
-      <CountUpStat value={value} />
+      <CountUpStat value={value} format={format} />
       {trend.length > 1 && (
         // Decorative: the headline number above is the real, accessible value — this sparkline
         // only shows the shape of the trend, nothing a screen reader needs separately.
