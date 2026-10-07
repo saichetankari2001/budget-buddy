@@ -59,6 +59,7 @@ describe('GET /api/cycles/active', () => {
     prismaMock.bill.findMany.mockResolvedValue([]); // no bills
     prismaMock.incomeSource.findMany.mockResolvedValue([]); // no fixed income sources
     prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]); // no tracked categories, for computeHealthScore
 
     const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
 
@@ -82,6 +83,58 @@ describe('GET /api/cycles/active', () => {
       })
     );
     expect(prismaMock.moneyCycle.update).not.toHaveBeenCalled();
+  });
+
+  it('includes a healthScore with a null delta when there is no prior completed cycle', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst
+      .mockResolvedValueOnce({
+        id: 'cycle_1', userId: 'user_1', startingAmount: { toString: () => '500.00' } as never,
+        startDate: new Date('2026-09-10T00:00:00.000Z'), endDate: new Date('2026-09-20T00:00:00.000Z'),
+        status: 'ACTIVE', createdAt: new Date('2026-09-10T00:00:00.000Z'), messages: [],
+      } as never)
+      .mockResolvedValueOnce(null); // no prior completed/cancelled cycle
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.bill.findMany.mockResolvedValue([]);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]);
+
+    const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
+
+    const json = await res.json();
+    expect(json.healthScore.total).toBe(100); // nothing spent, nothing due yet
+    expect(json.healthScore.delta).toBeNull();
+  });
+
+  it('includes a healthScore delta against the most recently completed cycle', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    const priorCycle = {
+      id: 'cycle_old', userId: 'user_1', startingAmount: { toString: () => '500.00' } as never,
+      startDate: new Date('2026-08-01T00:00:00.000Z'), endDate: new Date('2026-08-11T00:00:00.000Z'),
+      status: 'COMPLETED', createdAt: new Date('2026-08-01T00:00:00.000Z'),
+    };
+    prismaMock.moneyCycle.findFirst
+      .mockResolvedValueOnce({
+        id: 'cycle_1', userId: 'user_1', startingAmount: { toString: () => '500.00' } as never,
+        startDate: new Date('2026-09-10T00:00:00.000Z'), endDate: new Date('2026-09-20T00:00:00.000Z'),
+        status: 'ACTIVE', createdAt: new Date('2026-09-10T00:00:00.000Z'), messages: [],
+      } as never)
+      .mockResolvedValueOnce(priorCycle as never);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.expense.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.bill.findMany.mockResolvedValue([]);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]);
+
+    const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
+
+    const json = await res.json();
+    // Both cycles score 100 under these empty fixtures -> delta 0, not null.
+    expect(json.healthScore.total).toBe(100);
+    expect(json.healthScore.delta).toBe(0);
   });
 
   it('lazily completes a past-due cycle and returns null instead of stale data', async () => {
@@ -131,6 +184,7 @@ describe('GET /api/cycles/active', () => {
     prismaMock.bill.findMany.mockResolvedValue([
       { id: 'bill_1', userId: 'user_1', amount: { toString: () => '735.00' } as never, dueDate: new Date('2026-09-30T00:00:00.000Z'), recurrenceInterval: null, paidExpenseId: null, name: 'Rent + Subscription' },
     ] as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]); // no tracked categories, for computeHealthScore
 
     const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
 
@@ -170,6 +224,7 @@ describe('GET /api/cycles/active', () => {
     // A real Uber payment already logged this cycle — must be added on top of startingAmount,
     // not silently dropped.
     prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: { toString: () => '52.00' } } } as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]); // no tracked categories, for computeHealthScore
 
     const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
 
@@ -200,6 +255,7 @@ describe('GET /api/cycles/active', () => {
     prismaMock.bill.findMany.mockResolvedValue([]);
     prismaMock.incomeSource.findMany.mockResolvedValue([]);
     prismaMock.incomeEntry.aggregate.mockResolvedValue({ _sum: { amount: null } } as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]); // no tracked categories, for computeHealthScore
 
     const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
 
@@ -233,6 +289,7 @@ describe('GET /api/cycles/active', () => {
         dueDate: new Date('2026-09-12T00:00:00.000Z'), recurrenceInterval: null, paidExpenseId: null,
       },
     ] as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]); // no tracked categories, for computeHealthScore
 
     const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
 
@@ -267,6 +324,7 @@ describe('GET /api/cycles/active', () => {
         dueDate: new Date('2026-09-12T00:00:00.000Z'), recurrenceInterval: null, paidExpenseId: 'exp_settled',
       },
     ] as never);
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]); // no tracked categories, for computeHealthScore
 
     const res = await GET(new NextRequest('http://localhost/api/cycles/active'));
 
