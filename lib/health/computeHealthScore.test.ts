@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import '@/tests/mocks/prisma';
 import { prismaMock } from '@/tests/mocks/prisma';
 import { computeHealthScore } from './computeHealthScore';
@@ -139,5 +139,135 @@ describe('computeHealthScore', () => {
 
     expect(result.pacing.status).toBe('ON_TRACK');
     expect(result.pacing.points).toBe(30);
+  });
+
+  it('passes the cycle end date as the lte bound when computing category totals for a non-active (completed) cycle', async () => {
+    const completedCycle = {
+      id: 'cycle_done',
+      startDate: new Date('2026-08-01T00:00:00.000Z'),
+      endDate: new Date('2026-08-11T00:00:00.000Z'),
+      createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      status: 'COMPLETED' as const,
+      startingAmount: 500,
+    };
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    mockNoBills();
+
+    await computeHealthScore('user_1', completedCycle, new Date('2026-10-05T00:00:00.000Z'));
+
+    // Mutation check: deleting the `lte` bound entirely for a non-active cycle leaves every
+    // existing test passing (no mock asserts on call args) — this test would catch that.
+    expect(prismaMock.expense.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          date: expect.objectContaining({ lte: completedCycle.endDate }),
+        }),
+      })
+    );
+  });
+
+  it('passes the cycle createdAt as createdAtGte when computing category totals', async () => {
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    mockNoBills();
+
+    await computeHealthScore('user_1', activeCycle, now);
+
+    // Mutation check: deleting `createdAtGte` entirely leaves every existing test passing — this
+    // test would catch that (see categoryTotals.test.ts's cross-cycle regression for why it matters).
+    expect(prismaMock.expense.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          createdAt: { gte: activeCycle.createdAt },
+        }),
+      })
+    );
+  });
+
+  it('rounds the total once from the unrounded components, not by summing already-rounded component points', async () => {
+    // One tracked category: recommended $800, actual spend $530 -> unusedFraction = 1 - 530/800 =
+    // 0.3375 -> budgetAdherence.points = 40 * 0.3375 = 13.5 (unrounded).
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([
+      {
+        id: 'ccb_1',
+        cycleId: 'cycle_fraction',
+        categoryId: 'cat_x',
+        categoryName: 'Everything',
+        categoryColor: '#000000',
+        recommendedAmount: { toString: () => '800.00' } as never,
+        notifiedAt80: null,
+        notifiedAt100: null,
+        createdAt: new Date(),
+      },
+    ] as never);
+    prismaMock.expense.findMany.mockResolvedValue([
+      { categoryId: 'cat_x', amount: { toString: () => '530.00' } as never },
+    ] as never);
+    mockNoBills(); // billPunctuality.points = 30 (clean, nothing due)
+
+    const fractionCycle = {
+      id: 'cycle_fraction',
+      startDate: new Date('2026-09-01T00:00:00.000Z'),
+      endDate: new Date('2026-09-11T00:00:00.000Z'), // totalDays = 10
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      status: 'ACTIVE' as const,
+      startingAmount: 477, // plannedRatePerDay = 47.7
+    };
+    const fractionNow = new Date('2026-09-06T00:00:00.000Z'); // daysElapsed = 5
+
+    // spentSoFar = 530 (the only expense), actualRatePerDay = 530 / 5 = 106.
+    // pacingPoints = 30 * (47.7 / 106) = 30 * 0.45 = 13.5 (unrounded), status OVER_PACE.
+    const result = await computeHealthScore('user_1', fractionCycle, fractionNow);
+
+    expect(result.pacing.status).toBe('OVER_PACE');
+    // Each component is rounded for display...
+    expect(result.budgetAdherence.points).toBe(14); // Math.round(13.5)
+    expect(result.pacing.points).toBe(14); // Math.round(13.5)
+    expect(result.billPunctuality.points).toBe(30);
+    // ...but the total is rounded ONCE from the unrounded sum: 13.5 + 13.5 + 30 = 57 -> round -> 57.
+    // Summing the already-rounded components instead would give 14 + 14 + 30 = 58 — a different,
+    // not-spec'd number this test would catch.
+    expect(result.total).toBe(57);
+  });
+
+  it("keeps a CANCELLED cycle's bill-punctuality score identical no matter how much later it is recomputed, even past a stale future endDate", async () => {
+    // cancelCycle never advances endDate when flipping status to CANCELLED, so a cancelled cycle
+    // can be left with an endDate still in the future relative to when it's actually looked at.
+    const cancelledCycle = {
+      id: 'cycle_cancelled',
+      startDate: new Date('2026-09-01T00:00:00.000Z'),
+      endDate: new Date('2026-12-31T00:00:00.000Z'), // stale future endDate, never advanced
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      status: 'CANCELLED' as const,
+      startingAmount: 500,
+    };
+    const unpaidBill = {
+      id: 'bill_1',
+      userId: 'user_1',
+      name: 'Internet',
+      amount: { toString: () => '60.00' } as never,
+      dueDate: new Date('2026-10-10T00:00:00.000Z'),
+      recurrenceInterval: null,
+      categoryId: null,
+      paidExpenseId: null,
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+    };
+
+    prismaMock.cycleCategoryBudget.findMany.mockResolvedValue([]);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.bill.findMany.mockResolvedValue([unpaidBill] as never);
+
+    // Before the Critical fix: comparing the bill's dueDate against the live `now` meant a bill
+    // due AFTER the first "now" but BEFORE the second "now" would flip from "not yet due" (score
+    // 30) to "overdue" (score 0) purely because real time passed — even though this cycle is
+    // CANCELLED and nothing about it changed.
+    const soonAfter = await computeHealthScore('user_1', cancelledCycle, new Date('2026-10-05T00:00:00.000Z'));
+    const muchLater = await computeHealthScore('user_1', cancelledCycle, new Date('2026-12-25T00:00:00.000Z'));
+
+    expect(soonAfter.billPunctuality).toEqual(muchLater.billPunctuality);
+    expect(soonAfter.total).toBe(muchLater.total);
+    expect(soonAfter.billPunctuality.points).toBe(0);
+    expect(soonAfter.billPunctuality.lateBillName).toBe('Internet');
   });
 });

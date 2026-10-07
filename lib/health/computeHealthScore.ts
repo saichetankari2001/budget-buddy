@@ -35,7 +35,10 @@ export async function computeHealthScore(
   const windowEnd = isActive ? now : cycle.endDate;
   const windowStart = startOfSydneyDay(cycle.startDate);
 
-  const trackedRows = await prisma.cycleCategoryBudget.findMany({ where: { cycleId: cycle.id } });
+  const trackedRows = await prisma.cycleCategoryBudget.findMany({
+    where: { cycleId: cycle.id },
+    orderBy: { createdAt: 'asc' },
+  });
   const trackedCategoryIds = trackedRows
     .map((r) => r.categoryId)
     .filter((id): id is string => id !== null);
@@ -64,15 +67,18 @@ export async function computeHealthScore(
   const pacingPoints =
     status === 'ON_TRACK' ? 30 : Math.max(0, Math.min(30, 30 * (plannedRatePerDay / actualRatePerDay)));
 
-  const billPunctuality = await computeBillPunctualityPoints(userId, windowStart, windowEnd, now);
+  const billPunctuality = await computeBillPunctualityPoints(userId, windowStart, windowEnd);
 
+  // `total` is rounded ONCE from the unrounded components — never by summing the already-rounded
+  // display values below, which would compound rounding error into a different (and not spec'd)
+  // number.
   const total = Math.round(budgetAdherence.points + pacingPoints + billPunctuality.points);
 
   return {
     total,
-    budgetAdherence,
+    budgetAdherence: { ...budgetAdherence, points: Math.round(budgetAdherence.points) },
     pacing: { points: Math.round(pacingPoints), status },
-    billPunctuality,
+    billPunctuality: { ...billPunctuality, points: Math.round(billPunctuality.points) },
   };
 }
 
@@ -85,6 +91,11 @@ function computeBudgetAdherencePoints(
   }
 
   let worstFraction = 1;
+  // Tracked separately from the clamped `unusedFraction` used for scoring: the clamped value is
+  // always exactly 0 for ANY over-budget category, so it can't distinguish "10% over" from "500%
+  // over" when picking which one to name. This unclamped ratio can keep growing past 1, so
+  // whichever category is furthest over budget always wins the comparison.
+  let worstRatio = -Infinity;
   let worstCategoryName: string | undefined;
   let sumFraction = 0;
 
@@ -93,8 +104,10 @@ function computeBudgetAdherencePoints(
     const actual = actuals.find((a) => a.categoryId === row.categoryId)?.actual ?? 0;
     const unusedFraction = recommended > 0 ? Math.max(0, Math.min(1, 1 - actual / recommended)) : 1;
     sumFraction += unusedFraction;
-    if (unusedFraction < worstFraction) {
+    const ratio = recommended > 0 ? actual / recommended : 0;
+    if (unusedFraction < 1 && ratio > worstRatio) {
       worstFraction = unusedFraction;
+      worstRatio = ratio;
       worstCategoryName = row.categoryName;
     }
   }
@@ -108,8 +121,7 @@ function computeBudgetAdherencePoints(
 async function computeBillPunctualityPoints(
   userId: string,
   windowStart: Date,
-  windowEnd: Date,
-  now: Date
+  windowEnd: Date
 ): Promise<{ points: number; lateBillName?: string }> {
   const bills = await prisma.bill.findMany({ where: { userId } });
 
@@ -117,7 +129,7 @@ async function computeBillPunctualityPoints(
     .map((b) => b.paidExpenseId)
     .filter((id): id is string => id !== null);
   const paidExpenses = paidExpenseIds.length
-    ? await prisma.expense.findMany({ where: { id: { in: paidExpenseIds } } })
+    ? await prisma.expense.findMany({ where: { userId, id: { in: paidExpenseIds } } })
     : [];
   const paidExpenseById = new Map(paidExpenses.map((e) => [e.id, e]));
 
@@ -144,9 +156,12 @@ async function computeBillPunctualityPoints(
       continue;
     }
 
-    // Not paid (or paid outside this window) — does it have an occurrence overdue right now,
-    // inside this cycle's window? That counts as "due and not on time" until it's paid.
-    if (bill.dueDate >= windowStart && bill.dueDate <= windowEnd && bill.dueDate.getTime() <= now.getTime()) {
+    // Not paid (or paid outside this window) — does it have an occurrence overdue as of this
+    // cycle's own window boundary (never the live clock — for a non-active cycle, `windowEnd` is
+    // that cycle's own `endDate`, so a cancelled/completed cycle's score can never drift just
+    // because real time keeps passing after the cycle itself stopped moving)? `bill.dueDate <=
+    // windowEnd` is itself the overdue test here — there is no separate "now" to compare against.
+    if (bill.dueDate >= windowStart && bill.dueDate <= windowEnd) {
       dueCount += 1;
       lateBillName = bill.name;
     }
