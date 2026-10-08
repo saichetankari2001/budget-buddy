@@ -3,9 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const pushMock = vi.fn();
 const refreshMock = vi.fn();
+let mockPathname = '/dashboard';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
+  usePathname: () => mockPathname,
 }));
 
 import { Header } from './Header';
@@ -14,6 +16,7 @@ describe('Header', () => {
   beforeEach(() => {
     pushMock.mockClear();
     refreshMock.mockClear();
+    mockPathname = '/dashboard';
     global.fetch = vi.fn().mockResolvedValue({ ok: true });
   });
 
@@ -25,9 +28,26 @@ describe('Header', () => {
   it('renders nav links and a logout button', () => {
     render(<Header />);
 
-    expect(screen.getByText('Dashboard')).toBeInTheDocument();
-    expect(screen.getByText('Expenses')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/dashboard');
+    expect(screen.getByRole('link', { name: 'Expenses' })).toHaveAttribute('href', '/expenses');
+    expect(screen.getByRole('link', { name: 'Budgets' })).toHaveAttribute('href', '/budgets');
+    expect(screen.getByRole('link', { name: 'Cash Flow' })).toHaveAttribute('href', '/cashflow');
     expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
+  });
+
+  it('highlights the link matching the current route', () => {
+    mockPathname = '/expenses';
+    render(<Header />);
+
+    expect(screen.getByRole('link', { name: 'Expenses' }).className).toContain('text-trust');
+    expect(screen.getByRole('link', { name: 'Dashboard' }).className).not.toContain('text-trust');
+  });
+
+  it('highlights Dashboard when the pathname is exactly /dashboard', () => {
+    mockPathname = '/dashboard';
+    render(<Header />);
+
+    expect(screen.getByRole('link', { name: 'Dashboard' }).className).toContain('text-trust');
   });
 
   it('calls the logout API and redirects to /login on click', async () => {
@@ -74,32 +94,5 @@ describe('Header', () => {
     const logoutCallIndex = fetchMock.mock.calls.findIndex(([url]) => url === '/api/auth/logout');
     expect(unsubscribeCallIndex).toBeGreaterThanOrEqual(0);
     expect(unsubscribeCallIndex).toBeLessThan(logoutCallIndex);
-  });
-
-  it('highlights the nav link for the section currently most visible on screen', async () => {
-    let observerCallback: IntersectionObserverCallback = () => {};
-    const observeMock = vi.fn();
-    const disconnectMock = vi.fn();
-    global.IntersectionObserver = vi.fn().mockImplementation((callback: IntersectionObserverCallback) => {
-      observerCallback = callback;
-      return { observe: observeMock, disconnect: disconnectMock };
-    });
-
-    document.body.innerHTML = '<div id="expenses"></div><div id="budgets"></div><div id="cashflow"></div>';
-
-    render(<Header />);
-
-    expect(observeMock).toHaveBeenCalledTimes(3);
-
-    const expensesSection = document.getElementById('expenses')!;
-    observerCallback(
-      [{ target: expensesSection, intersectionRatio: 0.8 } as unknown as IntersectionObserverEntry],
-      {} as IntersectionObserver
-    );
-
-    await waitFor(() => {
-      const expensesLink = screen.getByText('Expenses');
-      expect(expensesLink.className).toContain('text-primary-hover');
-    });
   });
 });
