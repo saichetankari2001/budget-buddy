@@ -14,7 +14,7 @@ export function ExpenseFilters({ categories }: { categories: { id: string; name:
     } else {
       params.delete(key);
     }
-    router.push(`/dashboard?${params.toString()}#expenses`);
+    router.push(`/expenses?${params.toString()}`);
   }
 
   return (
