@@ -29,7 +29,7 @@ export function BudgetProgress({ items }: { items: BudgetProgressItem[] }) {
             <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${
-                  overBudget ? 'bg-destructive' : 'bg-primary'
+                  overBudget ? 'bg-destructive' : 'bg-success'
                 }`}
                 style={{ width: `${percent}%` }}
               />

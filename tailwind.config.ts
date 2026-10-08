@@ -14,6 +14,7 @@ const config: Config = {
         border: 'rgba(139,92,246,0.35)',
         destructive: '#f87171',
         success: '#34d399',
+        trust: '#2563EB',
         // Liquid-glass redesign (2026-09-29): additional glass elevations + a neutral glass edge,
         // layered alongside the tokens above (which keep their current values/meaning unchanged).
         // These are raw rgba() strings, exactly like `card`/`border` above — Tailwind's `/<opacity>`

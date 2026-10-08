@@ -9,13 +9,15 @@ describe('BudgetProgress', () => {
   });
 
   it('renders a progress row with spent/limit for each item', () => {
-    render(
+    const { container } = render(
       <BudgetProgress
         items={[{ categoryId: 'cat_1', categoryName: 'Food', spent: 40, limit: 100 }]}
       />
     );
     expect(screen.getByText('Food')).toBeInTheDocument();
     expect(screen.getByText('$40.00 / $100.00')).toBeInTheDocument();
+    const bar = container.querySelector('.bg-success');
+    expect(bar).not.toBeNull();
   });
 
   it('shows an over-budget label and styling when spent exceeds limit', () => {
