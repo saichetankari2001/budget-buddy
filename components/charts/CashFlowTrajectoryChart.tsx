@@ -68,9 +68,10 @@ export function CashFlowTrajectoryChart({ refreshKey = 0 }: { refreshKey?: numbe
         <AreaChart data={chartData}>
           <defs>
             <linearGradient id="trajectoryGradient" x1="0" y1="0" x2="0" y2="1">
-              {/* stopColor: trust color from tailwind.config.ts */}
-              <stop offset="0%" stopColor="rgb(37,99,235)" stopOpacity={0.5} />
-              <stop offset="100%" stopColor="rgb(37,99,235)" stopOpacity={0} />
+              {/* stopColor: trust color from tailwind.config.ts (#60a5fa, chosen 2026-10-09 for
+                  WCAG AA contrast as nav text -- see tailwind.config.ts's trust comment) */}
+              <stop offset="0%" stopColor="rgb(96,165,250)" stopOpacity={0.5} />
+              <stop offset="100%" stopColor="rgb(96,165,250)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(139,92,246,0.35)" />
@@ -89,11 +90,12 @@ export function CashFlowTrajectoryChart({ refreshKey = 0 }: { refreshKey?: numbe
             labelStyle={{ color: '#e5e7ff' }}
           />
           <ReferenceLine y={0} stroke="#f87171" strokeDasharray="4 4" />
-          {/* stroke: trust color from tailwind.config.ts */}
+          {/* stroke: trust color from tailwind.config.ts (#60a5fa, chosen 2026-10-09 for WCAG AA
+              contrast as nav text -- see tailwind.config.ts's trust comment) */}
           <Area
             type="monotone"
             dataKey="balance"
-            stroke="rgb(37,99,235)"
+            stroke="rgb(96,165,250)"
             strokeWidth={2}
             fill="url(#trajectoryGradient)"
             isAnimationActive

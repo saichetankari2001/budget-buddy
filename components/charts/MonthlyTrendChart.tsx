@@ -26,8 +26,9 @@ export function MonthlyTrendChart({ data }: { data: MonthlyTotal[] }) {
             itemStyle={{ color: '#e5e7ff' }}
             labelStyle={{ color: '#e5e7ff' }}
           />
-          {/* stroke: trust color from tailwind.config.ts */}
-          <Line type="monotone" dataKey="total" stroke="rgb(37,99,235)" strokeWidth={2} dot />
+          {/* stroke: trust color from tailwind.config.ts (#60a5fa, chosen 2026-10-09 for WCAG AA
+              contrast as nav text -- see tailwind.config.ts's trust comment) */}
+          <Line type="monotone" dataKey="total" stroke="rgb(96,165,250)" strokeWidth={2} dot />
         </LineChart>
       </ResponsiveContainer>
     </div>

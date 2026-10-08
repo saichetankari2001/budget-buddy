@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, test } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const pushMock = vi.fn();
@@ -35,20 +35,31 @@ describe('Header', () => {
     expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
   });
 
-  it('highlights the link matching the current route', () => {
-    mockPathname = '/expenses';
-    render(<Header />);
+  const ROUTES = [
+    { pathname: '/dashboard', label: 'Dashboard' },
+    { pathname: '/expenses', label: 'Expenses' },
+    { pathname: '/budgets', label: 'Budgets' },
+    { pathname: '/cashflow', label: 'Cash Flow' },
+  ];
 
-    expect(screen.getByRole('link', { name: 'Expenses' }).className).toContain('text-trust');
-    expect(screen.getByRole('link', { name: 'Dashboard' }).className).not.toContain('text-trust');
-  });
+  test.each(ROUTES)(
+    'highlights $label as the active link and marks it aria-current when pathname is $pathname',
+    ({ pathname, label }) => {
+      mockPathname = pathname;
+      render(<Header />);
 
-  it('highlights Dashboard when the pathname is exactly /dashboard', () => {
-    mockPathname = '/dashboard';
-    render(<Header />);
+      const activeLink = screen.getByRole('link', { name: label });
+      expect(activeLink.className).toContain('text-trust');
+      expect(activeLink).toHaveAttribute('aria-current', 'page');
 
-    expect(screen.getByRole('link', { name: 'Dashboard' }).className).toContain('text-trust');
-  });
+      for (const other of ROUTES) {
+        if (other.label === label) continue;
+        const otherLink = screen.getByRole('link', { name: other.label });
+        expect(otherLink.className).not.toContain('text-trust');
+        expect(otherLink).not.toHaveAttribute('aria-current');
+      }
+    }
+  );
 
   it('calls the logout API and redirects to /login on click', async () => {
     render(<Header />);

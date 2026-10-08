@@ -14,7 +14,12 @@ const config: Config = {
         border: 'rgba(139,92,246,0.35)',
         destructive: '#f87171',
         success: '#34d399',
-        trust: '#2563EB',
+        // 2026-10-09: #2563EB (Tailwind blue-600) measured 3.54:1 as 14px/500 text against
+        // this app's effective dark header background (~rgb(20,20,29)) -- fails WCAG AA's
+        // 4.5:1 text threshold. #60a5fa (Tailwind blue-400) measures 7.20:1 against the same
+        // background, clearing both the 4.5:1 text bar and the lighter 3:1 bar for the
+        // chart-line (graphical object) usage in MonthlyTrendChart/CashFlowTrajectoryChart.
+        trust: '#60a5fa',
         // Liquid-glass redesign (2026-09-29): additional glass elevations + a neutral glass edge,
         // layered alongside the tokens above (which keep their current values/meaning unchanged).
         // These are raw rgba() strings, exactly like `card`/`border` above — Tailwind's `/<opacity>`

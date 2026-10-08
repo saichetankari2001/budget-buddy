@@ -43,17 +43,21 @@ export function Header() {
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
         <span className="font-heading text-lg font-semibold text-foreground">Budget Buddy</span>
         <nav className="flex items-center gap-6">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`text-sm font-medium ${
-                pathname === link.href ? 'text-trust' : 'text-muted hover:text-foreground'
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={isActive ? 'page' : undefined}
+                className={`text-sm font-medium ${
+                  isActive ? 'text-trust' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
           <button
             onClick={handleLogout}
             className="flex items-center gap-1 text-sm font-medium text-muted hover:text-destructive"
