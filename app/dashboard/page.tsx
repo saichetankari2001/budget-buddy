@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth/session';
 import { computeHealthScore } from '@/lib/health/computeHealthScore';
 import { aggregateByCategory } from '@/lib/utils/expenseAggregation';
+import { getCurrentMonthRange } from '@/lib/utils/dateRange';
 import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
 import { Header } from '@/components/ui/Header';
 import { GlassPanel } from '@/components/ui/GlassPanel';
@@ -35,10 +36,10 @@ export default async function DashboardPage() {
   }
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const { start: startOfMonth, end: startOfNextMonth } = getCurrentMonthRange(now);
 
   const currentMonthExpensesRaw = await prisma.expense.findMany({
-    where: { userId: user.userId, date: { gte: startOfMonth } },
+    where: { userId: user.userId, date: { gte: startOfMonth, lt: startOfNextMonth } },
     include: { category: true },
   });
   const currentMonthExpenses = currentMonthExpensesRaw.map((e) => ({
@@ -63,6 +64,9 @@ export default async function DashboardPage() {
 
   let healthScoreValue = 0;
   let healthScoreTrend: number[] = [];
+  // No active cycle yet (e.g. a brand-new signup) means there's no real data behind a score —
+  // showing a perfect 100 in that state would be a misleading "black box" number, exactly what
+  // this feature exists to avoid. The dashboard renders an em-dash instead when this is false.
   let hasHealthScore = false;
   const activeCycle = await prisma.moneyCycle.findFirst({ where: { userId: user.userId, status: 'ACTIVE' } });
   if (activeCycle) {
