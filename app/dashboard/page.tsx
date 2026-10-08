@@ -1,184 +1,68 @@
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth/session';
 import { computeHealthScore } from '@/lib/health/computeHealthScore';
-import { aggregateByCategory, aggregateByMonth } from '@/lib/utils/expenseAggregation';
+import { aggregateByCategory } from '@/lib/utils/expenseAggregation';
 import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
-import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
 import { Header } from '@/components/ui/Header';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
 import { StatCard } from '@/components/ui/StatCard';
-import { BudgetProgress } from '@/components/ui/BudgetProgress';
 import { CoachCard } from '@/components/coach/CoachCard';
 import { SpendingBreakdownCard } from '@/components/dashboard/SpendingBreakdownCard';
 import { DashboardHeroOrb } from '@/components/dashboard/DashboardHeroOrb';
 import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses';
-import { computeGstPaid } from '@/lib/utils/gst';
-import { ExpenseFilters } from '@/components/expenses/ExpenseFilters';
-import { ExpensesClient } from '@/app/expenses/ExpensesClient';
-import { CashFlowClient } from '@/app/cashflow/CashFlowClient';
-import { BudgetsClient } from '@/app/budgets/BudgetsClient';
+import Link from 'next/link';
+import {
+  BanknotesIcon,
+  ChartPieIcon,
+  ArrowsRightLeftIcon,
+} from '@heroicons/react/24/outline';
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: { categoryId?: string; from?: string; to?: string };
-}) {
+const QUICK_LINKS = [
+  { href: '/expenses', label: 'Expenses', Icon: BanknotesIcon },
+  { href: '/budgets', label: 'Budgets', Icon: ChartPieIcon },
+  { href: '/cashflow', label: 'Cash Flow', Icon: ArrowsRightLeftIcon },
+];
+
+export default async function DashboardPage() {
   const user = await getCurrentUser();
-  // middleware.ts already guarantees `user` is non-null for this route;
-  // this check exists only to satisfy TypeScript.
   if (!user) return null;
 
   try {
     await generateDueRecurringExpenses(user.userId);
   } catch (error) {
-    // A generation hiccup (e.g. a transient DB error) shouldn't block the
-    // user from viewing their existing dashboard data.
     console.error('Failed to generate recurring expenses:', error);
   }
 
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-  sixMonthsAgo.setDate(1);
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const expenses = await prisma.expense.findMany({
-    where: { userId: user.userId, date: { gte: sixMonthsAgo } },
+  const currentMonthExpensesRaw = await prisma.expense.findMany({
+    where: { userId: user.userId, date: { gte: startOfMonth } },
     include: { category: true },
   });
-
-  const expensesForAggregation = expenses.map((e) => ({
+  const currentMonthExpenses = currentMonthExpensesRaw.map((e) => ({
     amount: Number(e.amount),
     date: e.date,
     category: e.category,
   }));
 
-  const now = new Date();
-  const currentMonthExpenses = expensesForAggregation.filter(
-    (e) => e.date.getFullYear() === now.getFullYear() && e.date.getMonth() === now.getMonth()
-  );
-
   const categoryTotals = aggregateByCategory(currentMonthExpenses);
-  const monthlyTotals = aggregateByMonth(expensesForAggregation, 6);
   const totalThisMonth = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const gstPaidThisMonth = computeGstPaid(
-    currentMonthExpenses.map((e) => ({ amount: e.amount, categoryIsGstFree: e.category.isGstFree }))
-  );
 
-  // Daily cumulative running totals for the stat cards' embedded sparklines, from the 1st of the
-  // current month through today — reuses the same currentMonthExpenses data already computed
-  // above rather than a new query.
   const dayOfMonth = now.getDate();
   const dailySpendTotals = Array.from({ length: dayOfMonth }, () => 0);
-  const dailyGstExpenses: { amount: number; categoryIsGstFree: boolean }[][] = Array.from(
-    { length: dayOfMonth },
-    () => []
-  );
   for (const e of currentMonthExpenses) {
     const day = e.date.getDate();
     if (day >= 1 && day <= dayOfMonth) {
       dailySpendTotals[day - 1] += e.amount;
-      dailyGstExpenses[day - 1].push({ amount: e.amount, categoryIsGstFree: e.category.isGstFree });
     }
   }
   let runningSpend = 0;
   const spendTrend = dailySpendTotals.map((d) => (runningSpend += d));
-  let runningGstExpenses: { amount: number; categoryIsGstFree: boolean }[] = [];
-  const gstTrend = dailyGstExpenses.map((dayExpenses) => {
-    runningGstExpenses = [...runningGstExpenses, ...dayExpenses];
-    return computeGstPaid(runningGstExpenses);
-  });
 
-  const budgets = await prisma.budget.findMany({
-    where: { userId: user.userId },
-    include: { category: true },
-  });
-  const spentByCategory = new Map(categoryTotals.map((c) => [c.categoryId, c.total]));
-  const budgetItems = budgets.map((budget) => ({
-    categoryId: budget.categoryId,
-    categoryName: budget.category.name,
-    spent: spentByCategory.get(budget.categoryId) ?? 0,
-    limit: Number(budget.monthlyLimit),
-  }));
-
-  const categories = await prisma.category.findMany({ where: { userId: user.userId } });
-
-  const expenseWhere: { userId: string; categoryId?: string; date?: { gte?: Date; lte?: Date } } = {
-    userId: user.userId,
-  };
-  if (searchParams.categoryId) expenseWhere.categoryId = searchParams.categoryId;
-  // Guard against malformed date strings in the URL: new Date('garbage') produces an Invalid
-  // Date, which Prisma then throws on — on this consolidated page that would crash the app's
-  // sole authenticated landing page, not just a single minor page, so an invalid bound is
-  // dropped rather than passed through.
-  const fromDate = searchParams.from ? new Date(searchParams.from) : undefined;
-  const toDate = searchParams.to ? new Date(searchParams.to) : undefined;
-  const validFromDate = fromDate && !isNaN(fromDate.getTime()) ? fromDate : undefined;
-  const validToDate = toDate && !isNaN(toDate.getTime()) ? toDate : undefined;
-  if (validFromDate || validToDate) {
-    expenseWhere.date = {
-      ...(validFromDate ? { gte: validFromDate } : {}),
-      ...(validToDate ? { lte: validToDate } : {}),
-    };
-  }
-
-  const filteredExpenses = await prisma.expense.findMany({
-    where: expenseWhere,
-    include: { category: true },
-    orderBy: { date: 'desc' },
-  });
-
-  const serializedExpenses = filteredExpenses.map((e) => ({
-    id: e.id,
-    amount: Number(e.amount),
-    description: e.description,
-    date: e.date.toISOString(),
-    isRecurring: e.isRecurring,
-    recurrenceInterval: e.recurrenceInterval ?? undefined,
-    category: { id: e.category.id, name: e.category.name, color: e.category.color },
-  }));
-
-  const [incomeSources, bills] = await Promise.all([
-    prisma.incomeSource.findMany({ where: { userId: user.userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.bill.findMany({ where: { userId: user.userId }, orderBy: { dueDate: 'asc' } }),
-  ]);
-
-  const serializedIncomeSources = incomeSources.map((s) => ({
-    id: s.id,
-    name: s.name,
-    type: s.type,
-    amount: s.amount ? Number(s.amount) : null,
-    recurrenceInterval: s.recurrenceInterval ?? undefined,
-    startDate: s.startDate.toISOString(),
-  }));
-
-  const nowForBills = new Date();
-  const serializedBills = bills.map((b) => ({
-    id: b.id,
-    name: b.name,
-    amount: Number(b.amount),
-    dueDate: b.dueDate.toISOString(),
-    recurrenceInterval: b.recurrenceInterval ?? undefined,
-    isPaidThisPeriod: b.paidExpenseId !== null && b.dueDate > nowForBills,
-  }));
-
-  const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, Number(b.monthlyLimit)]));
-  const budgetRows = categories.map((category) => ({
-    categoryId: category.id,
-    categoryName: category.name,
-    color: category.color,
-    monthlyLimit: budgetByCategory.get(category.id) ?? null,
-    isGstFree: category.isGstFree,
-  }));
-
-  // Financial health stat cell: computed the same way the Coach feature does — directly via
-  // Prisma + computeHealthScore, not through the /api/cycles/active route — since this page
-  // already assembles every other dashboard figure server-side. No existing query on this page
-  // already fetches the active cycle, so this is a new lookup rather than a reused variable.
   let healthScoreValue = 0;
   let healthScoreTrend: number[] = [];
-  // No active cycle yet (e.g. a brand-new signup) means there's no real data behind a score —
-  // showing a perfect 100 in that state would be a misleading "black box" number, exactly what
-  // this feature exists to avoid. The dashboard renders an em-dash instead when this is false.
   let hasHealthScore = false;
   const activeCycle = await prisma.moneyCycle.findFirst({ where: { userId: user.userId, status: 'ACTIVE' } });
   if (activeCycle) {
@@ -231,13 +115,10 @@ export default async function DashboardPage({
         <DashboardHeroOrb />
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Dashboard</h1>
 
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div className="col-span-1 grid grid-cols-1 gap-6 sm:col-span-2 sm:grid-cols-3">
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <GlassPanel elevation={2}>
               <StatCard label="Total spent this month" value={totalThisMonth} trend={spendTrend} />
-            </GlassPanel>
-            <GlassPanel elevation={2}>
-              <StatCard label="GST paid this month" value={gstPaidThisMonth} trend={gstTrend} />
             </GlassPanel>
             <GlassPanel elevation={2}>
               {hasHealthScore ? (
@@ -253,13 +134,23 @@ export default async function DashboardPage({
             </GlassPanel>
           </div>
 
-          <div className="sm:col-span-2">
-            <CoachCard />
-          </div>
+          <nav
+            aria-label="Quick access"
+            className="flex gap-4 overflow-x-auto pb-2"
+          >
+            {QUICK_LINKS.map(({ href, label, Icon }) => (
+              <Link key={href} href={href} className="flex-shrink-0">
+                <GlassPanel elevation={1} hoverable className="flex items-center gap-2 px-4 py-3">
+                  <Icon className="h-5 w-5 text-trust" aria-hidden="true" />
+                  <span className="text-sm font-medium text-foreground">{label}</span>
+                </GlassPanel>
+              </Link>
+            ))}
+          </nav>
 
-          <div className="sm:col-span-2">
-            <SpendingBreakdownCard />
-          </div>
+          <CoachCard />
+
+          <SpendingBreakdownCard />
 
           <GlassPanel elevation={1}>
             <h2 className="mb-3 font-heading font-medium text-foreground">
@@ -267,39 +158,6 @@ export default async function DashboardPage({
             </h2>
             <CategoryPieChart data={categoryTotals} />
           </GlassPanel>
-          <GlassPanel elevation={1}>
-            <h2 className="mb-3 font-heading font-medium text-foreground">6-month trend</h2>
-            <MonthlyTrendChart data={monthlyTotals} />
-          </GlassPanel>
-
-          <div className="sm:col-span-2">
-            <GlassPanel elevation={1}>
-              <h2 className="mb-3 font-heading font-medium text-foreground">Budget progress</h2>
-              <BudgetProgress items={budgetItems} />
-            </GlassPanel>
-          </div>
-
-          <div id="expenses" className="sm:col-span-2">
-            <GlassPanel elevation={1}>
-              <h2 className="mb-3 font-heading font-medium text-foreground">Expenses</h2>
-              <ExpenseFilters categories={categories} />
-              <ExpensesClient categories={categories} initialExpenses={serializedExpenses} />
-            </GlassPanel>
-          </div>
-
-          <div id="budgets" className="sm:col-span-2">
-            <GlassPanel elevation={1}>
-              <h2 className="mb-3 font-heading font-medium text-foreground">Manage budgets</h2>
-              <BudgetsClient rows={budgetRows} />
-            </GlassPanel>
-          </div>
-
-          <div id="cashflow" className="sm:col-span-2">
-            <GlassPanel elevation={1}>
-              <h2 className="mb-3 font-heading font-medium text-foreground">Cash Flow</h2>
-              <CashFlowClient initialIncomeSources={serializedIncomeSources} initialBills={serializedBills} />
-            </GlassPanel>
-          </div>
         </div>
       </main>
     </>
