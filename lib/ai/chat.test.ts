@@ -26,6 +26,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('hey there', [], handlers);
 
@@ -63,6 +65,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('change it to 700', [], handlers);
 
@@ -94,6 +98,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('cancel my cycle', [], handlers);
 
@@ -124,6 +130,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     await generateChatReply('cancel my cycle', [], handlers);
 
@@ -152,6 +160,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('change it to 700', [], handlers);
 
@@ -170,6 +180,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     await generateChatReply('change it to 700', [], handlers);
 
@@ -191,6 +203,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     await generateChatReply('hey there', [], handlers);
 
@@ -230,6 +244,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
 
     const result = await generateChatReply('change it to 700', [], handlers);
@@ -287,6 +303,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('I got a new casual job, $30/hour weekly starting next Monday', [], handlers);
 
@@ -330,6 +348,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('I just got $85 from Uber', [], handlers);
 
@@ -367,6 +387,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn().mockResolvedValue({ success: true, id: 'bill_1' }),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('add a phone bill, $30, due Oct 2', [], handlers);
 
@@ -404,6 +426,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn().mockResolvedValue({ success: true, expenseId: 'expense_1' }),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('I paid the phone bill', [], handlers);
 
@@ -448,6 +472,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn().mockResolvedValue({ success: true, id: 'expense_1', categoryName: 'Food' }),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('I spent $20 on groceries', [], handlers);
 
@@ -485,6 +511,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn().mockResolvedValue({ success: true, id: 'expense_2', categoryName: 'Other' }),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('spent $15 on random stuff', [], handlers);
 
@@ -523,6 +551,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn().mockRejectedValue(new Error('unexpected db failure')),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
 
     const result = await generateChatReply('add a phone bill, $30, due Oct 2', [], handlers);
@@ -571,6 +601,8 @@ describe('generateChatReply', () => {
       addBill: vi.fn(),
       markBillPaid: vi.fn(),
       logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
     };
     const result = await generateChatReply('change it to some amount', [], handlers);
 
@@ -585,5 +617,60 @@ describe('generateChatReply', () => {
       success: false,
       error: 'newAmount must be a number',
     });
+  });
+
+  it('calls addSavingsGoal when Gemini requests add_savings_goal, then uses the follow-up reply', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{
+            content: {
+              parts: [{ functionCall: { name: 'add_savings_goal', args: { name: 'Laptop fund', targetAmount: 1500, targetDate: '2026-12-25T00:00:00.000Z' } } }],
+            },
+          }],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ candidates: [{ content: { parts: [{ text: "Got it — I've set up your Laptop fund goal." } ] } }] }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(), cancelCycle: vi.fn(), addIncomeSource: vi.fn(), logIncome: vi.fn(),
+      addBill: vi.fn(), markBillPaid: vi.fn(), logExpense: vi.fn(),
+      addSavingsGoal: vi.fn().mockResolvedValue({ success: true, id: 'goal_1' }),
+      logSavingsContribution: vi.fn(),
+    };
+
+    const result = await generateChatReply('I want to save $1500 for a laptop by Christmas', [], handlers);
+
+    expect(handlers.addSavingsGoal).toHaveBeenCalledWith({ name: 'Laptop fund', targetAmount: 1500, targetDate: '2026-12-25T00:00:00.000Z' });
+    expect(result).toBe("Got it — I've set up your Laptop fund goal.");
+  });
+
+  it('calls logSavingsContribution when Gemini requests log_savings_contribution', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ functionCall: { name: 'log_savings_contribution', args: { goalName: 'Laptop fund', amount: 50 } } }] } }],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ candidates: [{ content: { parts: [{ text: 'Nice, $50 closer to your laptop fund.' }] } }] }),
+      } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(), cancelCycle: vi.fn(), addIncomeSource: vi.fn(), logIncome: vi.fn(),
+      addBill: vi.fn(), markBillPaid: vi.fn(), logExpense: vi.fn(), addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn().mockResolvedValue({ success: true, id: 'contrib_1' }),
+    };
+
+    const result = await generateChatReply('I put $50 towards my laptop fund', [], handlers);
+
+    expect(handlers.logSavingsContribution).toHaveBeenCalledWith({ goalName: 'Laptop fund', amount: 50 });
+    expect(result).toBe('Nice, $50 closer to your laptop fund.');
   });
 });

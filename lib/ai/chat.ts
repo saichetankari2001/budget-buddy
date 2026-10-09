@@ -83,6 +83,31 @@ const TOOLS = [
           required: ['amount', 'description'],
         },
       },
+      {
+        name: 'add_savings_goal',
+        description: "Create a new savings goal the user wants to work toward — a named target amount, optionally with a target date",
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'A short name for this goal, e.g. "Laptop fund" or "Holiday"' },
+            targetAmount: { type: 'number', description: 'The total amount the user wants to save, in AUD' },
+            targetDate: { type: 'string', description: 'ISO date string for when they want to reach it, if mentioned' },
+          },
+          required: ['name', 'targetAmount'],
+        },
+      },
+      {
+        name: 'log_savings_contribution',
+        description: "Log money the user just put toward an existing savings goal",
+        parameters: {
+          type: 'object',
+          properties: {
+            goalName: { type: 'string', description: 'The name of the savings goal this money went toward' },
+            amount: { type: 'number', description: 'The amount contributed, in AUD' },
+          },
+          required: ['goalName', 'amount'],
+        },
+      },
     ],
   },
 ];
@@ -115,6 +140,12 @@ export interface ChatToolHandlers {
     description: string;
     categoryName?: string;
   }) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
+  addSavingsGoal: (input: {
+    name: string;
+    targetAmount: number;
+    targetDate?: string;
+  }) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
+  logSavingsContribution: (input: { goalName: string; amount: number }) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
 }
 
 const FALLBACK_REPLY = "Sorry, I couldn't catch that — try again in a moment.";
@@ -247,6 +278,26 @@ export async function generateChatReply(
             description: args.description,
             categoryName: typeof args.categoryName === 'string' ? args.categoryName : undefined,
           });
+        }
+      } else if (name === 'add_savings_goal') {
+        if (typeof args.name !== 'string') {
+          toolResult = { success: false, error: 'name must be a string' };
+        } else if (typeof args.targetAmount !== 'number') {
+          toolResult = { success: false, error: 'targetAmount must be a number' };
+        } else {
+          toolResult = await handlers.addSavingsGoal({
+            name: args.name,
+            targetAmount: args.targetAmount,
+            targetDate: typeof args.targetDate === 'string' ? args.targetDate : undefined,
+          });
+        }
+      } else if (name === 'log_savings_contribution') {
+        if (typeof args.goalName !== 'string') {
+          toolResult = { success: false, error: 'goalName must be a string' };
+        } else if (typeof args.amount !== 'number') {
+          toolResult = { success: false, error: 'amount must be a number' };
+        } else {
+          toolResult = await handlers.logSavingsContribution({ goalName: args.goalName, amount: args.amount });
         }
       } else {
         toolResult = { success: false, error: `Unknown tool: ${name}` };

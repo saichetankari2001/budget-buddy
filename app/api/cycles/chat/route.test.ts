@@ -9,6 +9,7 @@ vi.mock('@/lib/moneyCycle/actions', () => ({ updateCycleAmount: vi.fn(), cancelC
 vi.mock('@/lib/income/actions', () => ({ addIncomeSource: vi.fn(), logIncomeEntry: vi.fn() }));
 vi.mock('@/lib/bills/actions', () => ({ addBill: vi.fn(), markBillPaid: vi.fn() }));
 vi.mock('@/lib/expenses/actions', () => ({ logExpense: vi.fn() }));
+vi.mock('@/lib/savingsGoals/actions', () => ({ addSavingsGoal: vi.fn(), logSavingsContribution: vi.fn() }));
 
 import { getCurrentUser } from '@/lib/auth/session';
 import { generateChatReply } from '@/lib/ai/chat';
@@ -205,6 +206,40 @@ describe('POST /api/cycles/chat', () => {
     await handlers.logExpense({ amount: 20, description: 'Groceries', categoryName: 'Food' });
 
     expect(logExpense).toHaveBeenCalledWith('user_1', { amount: 20, description: 'Groceries', categoryName: 'Food' });
+  });
+
+  it('binds the addSavingsGoal handler to user.userId and converts targetDate to a Date when present', async () => {
+    const { addSavingsGoal } = await import('@/lib/savingsGoals/actions');
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({ id: 'cycle_1', userId: 'user_1', status: 'ACTIVE' } as never);
+    prismaMock.coachMessage.findMany.mockResolvedValue([]);
+    prismaMock.coachMessage.create.mockResolvedValue({} as never);
+    vi.mocked(generateChatReply).mockResolvedValue('Set up your goal.');
+    vi.mocked(addSavingsGoal).mockResolvedValue({ success: true, id: 'goal_1' } as never);
+
+    await POST(new NextRequest('http://localhost/api/cycles/chat', { method: 'POST', body: JSON.stringify({ message: 'save for a laptop' }) }));
+
+    const handlers = vi.mocked(generateChatReply).mock.calls[0][2];
+    await handlers.addSavingsGoal({ name: 'Laptop fund', targetAmount: 1500, targetDate: '2026-12-25T00:00:00.000Z' });
+
+    expect(addSavingsGoal).toHaveBeenCalledWith('user_1', { name: 'Laptop fund', targetAmount: 1500, targetDate: new Date('2026-12-25T00:00:00.000Z') });
+  });
+
+  it('binds the logSavingsContribution handler to user.userId', async () => {
+    const { logSavingsContribution } = await import('@/lib/savingsGoals/actions');
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({ id: 'cycle_1', userId: 'user_1', status: 'ACTIVE' } as never);
+    prismaMock.coachMessage.findMany.mockResolvedValue([]);
+    prismaMock.coachMessage.create.mockResolvedValue({} as never);
+    vi.mocked(generateChatReply).mockResolvedValue('Logged it.');
+    vi.mocked(logSavingsContribution).mockResolvedValue({ success: true, id: 'contrib_1' } as never);
+
+    await POST(new NextRequest('http://localhost/api/cycles/chat', { method: 'POST', body: JSON.stringify({ message: 'I put $50 towards my laptop fund' }) }));
+
+    const handlers = vi.mocked(generateChatReply).mock.calls[0][2];
+    await handlers.logSavingsContribution({ goalName: 'Laptop fund', amount: 50 });
+
+    expect(logSavingsContribution).toHaveBeenCalledWith('user_1', { goalName: 'Laptop fund', amount: 50 });
   });
 
   it('returns 400 when there is no active cycle', async () => {
