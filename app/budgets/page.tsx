@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth/session';
 import { aggregateByCategory } from '@/lib/utils/expenseAggregation';
+import { getCurrentMonthRange } from '@/lib/utils/dateRange';
 import { Header } from '@/components/ui/Header';
 import { GlassPanel } from '@/components/ui/GlassPanel';
+import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
 import { BudgetProgress } from '@/components/ui/BudgetProgress';
 import { BudgetsClient } from './BudgetsClient';
 
@@ -10,14 +12,13 @@ export default async function BudgetsPage() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const { start: startOfMonth, end: startOfNextMonth } = getCurrentMonthRange(new Date());
 
   const [budgets, categories, currentMonthExpenses] = await Promise.all([
     prisma.budget.findMany({ where: { userId: user.userId }, include: { category: true } }),
     prisma.category.findMany({ where: { userId: user.userId } }),
     prisma.expense.findMany({
-      where: { userId: user.userId, date: { gte: startOfMonth } },
+      where: { userId: user.userId, date: { gte: startOfMonth, lt: startOfNextMonth } },
       include: { category: true },
     }),
   ]);
@@ -46,6 +47,7 @@ export default async function BudgetsPage() {
     <>
       <Header />
       <main className="relative mx-auto max-w-4xl overflow-hidden px-4 py-8">
+        <AmbientBlobs />
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Budgets</h1>
         <div className="flex flex-col gap-6">
           <GlassPanel elevation={1}>

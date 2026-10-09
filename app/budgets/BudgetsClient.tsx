@@ -32,8 +32,8 @@ export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
       return;
     }
     setRows((prev) => prev.map((r) => (r.categoryId === categoryId ? { ...r, monthlyLimit: value } : r)));
-    // Revalidates app/dashboard/page.tsx's server-rendered data so the separate, read-only
-    // "Budget progress" cell reflects this limit without a manual reload.
+    // Revalidates this page's (app/budgets/page.tsx) server-rendered data so the separate,
+    // read-only "Budget progress" cell above reflects this limit without a manual reload.
     router.refresh();
   }
 
@@ -62,7 +62,7 @@ export function BudgetsClient({ rows: initialRows }: { rows: BudgetRow[] }) {
       alert(body.error ?? 'Failed to update category');
       return;
     }
-    // A category's GST-free flag feeds the dashboard's "GST paid this month" stat.
+    // A category's GST-free flag feeds app/expenses/page.tsx's "GST paid this month" stat.
     router.refresh();
   }
 

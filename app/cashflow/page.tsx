@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth/session';
 import { Header } from '@/components/ui/Header';
 import { GlassPanel } from '@/components/ui/GlassPanel';
+import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
 import { CashFlowClient } from './CashFlowClient';
 
 export default async function CashFlowPage() {
@@ -36,6 +37,7 @@ export default async function CashFlowPage() {
     <>
       <Header />
       <main className="relative mx-auto max-w-4xl overflow-hidden px-4 py-8">
+        <AmbientBlobs />
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Cash Flow</h1>
         <GlassPanel elevation={1}>
           <CashFlowClient initialIncomeSources={serializedIncomeSources} initialBills={serializedBills} />

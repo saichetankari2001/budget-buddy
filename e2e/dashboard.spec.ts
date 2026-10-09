@@ -199,8 +199,9 @@ test.describe('cashflow hydration', () => {
     // server-rendered `initialBills` prop was empty every time CashFlowClient was hydrated so far.
     // A FRESH navigation now is the first point where the server actually renders a real bill's
     // "Due <date>" text via toLocaleDateString() — the same text the client then re-renders during
-    // hydration. In a PRODUCTION build (this suite always runs against `next build && next start`,
-    // per playwright.config.ts), a hydration text mismatch does NOT surface as a readable
+    // hydration. Per playwright.config.ts, this suite runs against a PRODUCTION build
+    // (`next build && next start`) only when `CI` is set — a local run uses `next dev` instead.
+    // Against a production build, a hydration text mismatch does NOT surface as a readable
     // console.error — React's dev-mode "Text content did not match" warning is stripped from
     // production bundles. Instead it throws a minified React error (#418/#423/#425) as an
     // uncaught `pageerror` — confirmed by reproducing this exact test against the pre-fix code,

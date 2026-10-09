@@ -4,6 +4,7 @@ import { aggregateByMonth } from '@/lib/utils/expenseAggregation';
 import { computeGstPaid } from '@/lib/utils/gst';
 import { Header } from '@/components/ui/Header';
 import { GlassPanel } from '@/components/ui/GlassPanel';
+import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
 import { StatCard } from '@/components/ui/StatCard';
 import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
 import { ExpenseFilters } from '@/components/expenses/ExpenseFilters';
@@ -76,6 +77,7 @@ export default async function ExpensesPage({
     <>
       <Header />
       <main className="relative mx-auto max-w-4xl overflow-hidden px-4 py-8">
+        <AmbientBlobs />
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Expenses</h1>
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

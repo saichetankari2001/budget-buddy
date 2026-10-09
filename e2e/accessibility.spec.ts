@@ -124,7 +124,7 @@ test('budgets page has no WCAG 2.1 A/AA violations', async ({ page }) => {
   expect(results.violations).toEqual([]);
 });
 
-test('dashboard with a saved budget renders progress bars and has no WCAG 2.1 A/AA violations', async ({
+test('budgets page with a saved budget renders progress bars and has no WCAG 2.1 A/AA violations', async ({
   page,
 }) => {
   await signUp(page, 'a11y-budget-progress');
