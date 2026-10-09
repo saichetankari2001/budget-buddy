@@ -111,4 +111,31 @@ describe('computeRollingForecast', () => {
     expect(result.headsUp).toEqual([]);
     expect(result.trajectory.every((d) => d.events.length === 0)).toBe(true);
   });
+
+  it('feeds a legacy recurring Expense template into the trajectory as a negative event, not just a query', async () => {
+    // An old-style recurring Expense template (isRecurring: true), predating the Bill model —
+    // must still show up as a real obligation in the rolling forecast, the same way
+    // projectCycle.ts already includes it in the cycle's own projection. Mirrors the
+    // "feeds a legacy recurring Expense template into the projection" test in
+    // app/api/cycles/active/route.test.ts.
+    const cycleEndDate = new Date('2026-10-20T00:00:00.000Z');
+    prismaMock.bill.findMany.mockResolvedValue([]);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.expense.findMany.mockResolvedValue([
+      {
+        id: 'exp_1', userId, amount: { toString: () => '50.00' } as never,
+        description: 'Gym membership', date: new Date('2026-10-16T00:00:00.000Z'),
+        recurrenceInterval: 'MONTHLY', isRecurring: true,
+      },
+    ] as never);
+
+    const result = await computeRollingForecast(userId, { remainingAmount: 500, cycleEndDate }, rawNow);
+
+    const oct16 = result.trajectory.find((d) => d.date === new Date('2026-10-16T00:00:00.000Z').toISOString());
+    expect(oct16?.events).toContainEqual({ label: 'Gym membership', amount: -50 });
+    expect(oct16?.balance).toBe(450); // 500 - 50
+    // Legacy recurring Expense templates are trajectory events only, never heads-up candidates —
+    // heads-up stays scoped to one-time Bill rows per the original spec.
+    expect(result.headsUp).toEqual([]);
+  });
 });

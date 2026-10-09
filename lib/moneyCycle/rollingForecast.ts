@@ -28,9 +28,25 @@ export async function computeRollingForecast(
 
   const billTemplates = await prisma.bill.findMany({ where: { userId } });
   const incomeSources = await prisma.incomeSource.findMany({ where: { userId, type: 'FIXED' } });
+  // Legacy recurring Expense templates (the expense form's "repeats" checkbox) are a real, live
+  // outflow source — projectCycle.ts already folds these into its own projection via
+  // legacyRecurringExpenseOccurrences. Omitting them here would make the rolling forecast more
+  // optimistic than the cycle's own projection for the same days, the exact "two different numbers
+  // for the same money" failure mode projectCycle.ts's header comment exists to prevent.
+  const recurringExpenseTemplates = await prisma.expense.findMany({
+    where: { userId, isRecurring: true },
+  });
+
+  // Floor both sides of every dueDate/startDate boundary comparison through startOfSydneyDay. Bill
+  // and IncomeSource rows created through the UI are always already UTC-midnight-stamped, so this
+  // is a no-op for them, but a non-midnight ISO timestamp (e.g. handed over by the AI chat tool)
+  // would otherwise compare as a raw instant and could be dropped from the window, or mis-flagged
+  // at the cycleEndDate boundary, purely due to its time-of-day component.
+  const windowEndDay = startOfSydneyDay(windowEnd);
+  const cycleEndDay = startOfSydneyDay(input.cycleEndDate);
 
   const oneTimeBills = billTemplates.filter(
-    (b) => b.recurrenceInterval === null && b.paidExpenseId === null && b.dueDate <= windowEnd
+    (b) => b.recurrenceInterval === null && b.paidExpenseId === null && startOfSydneyDay(b.dueDate) <= windowEndDay
   );
   const billOccurrencesOneTime = oneTimeBills.map((b) => ({ date: b.dueDate, amount: Number(b.amount), label: b.name }));
   const billOccurrencesRecurring = computeBillOccurrences(
@@ -40,13 +56,20 @@ export async function computeRollingForecast(
     today,
     windowEnd
   );
+  const legacyRecurringExpenseOccurrences = computeBillOccurrences(
+    recurringExpenseTemplates
+      .filter((t) => t.recurrenceInterval !== null)
+      .map((t) => ({ amount: Number(t.amount), recurrenceInterval: t.recurrenceInterval!, date: t.date, label: t.description })),
+    today,
+    windowEnd
+  );
 
   const fixedIncomeOneTime = incomeSources
-    .filter((s) => s.recurrenceInterval === null && s.startDate <= windowEnd)
+    .filter((s) => s.recurrenceInterval === null && startOfSydneyDay(s.startDate) <= windowEndDay)
     .map((s) => ({ date: s.startDate, amount: Number(s.amount), label: s.name }));
   const fixedIncomeRecurring = computeBillOccurrences(
     incomeSources
-      .filter((s) => s.recurrenceInterval !== null && s.startDate <= windowEnd)
+      .filter((s) => s.recurrenceInterval !== null && startOfSydneyDay(s.startDate) <= windowEndDay)
       .map((s) => ({ amount: Number(s.amount), recurrenceInterval: s.recurrenceInterval!, date: s.startDate, label: s.name })),
     today,
     windowEnd
@@ -57,13 +80,15 @@ export async function computeRollingForecast(
     today,
     endDate: windowEnd,
     fixedIncomeOccurrences: [...fixedIncomeOneTime, ...fixedIncomeRecurring],
-    billOccurrences: [...billOccurrencesOneTime, ...billOccurrencesRecurring],
+    billOccurrences: [...billOccurrencesOneTime, ...billOccurrencesRecurring, ...legacyRecurringExpenseOccurrences],
   });
 
   // "Heads up": a one-time bill due strictly after the cycle's own end (so the cycle's own
   // projection, which stops at cycleEndDate, never shows it) but still inside this 90-day window.
+  // Scoped to one-time Bill rows only — legacy recurring Expense templates are trajectory events
+  // only, never heads-up candidates, per the original spec.
   const headsUp = oneTimeBills
-    .filter((b) => b.dueDate.getTime() > input.cycleEndDate.getTime())
+    .filter((b) => startOfSydneyDay(b.dueDate).getTime() > cycleEndDay.getTime())
     .map((b) => ({ name: b.name, amount: Number(b.amount), dueDate: b.dueDate.toISOString() }));
 
   return {
