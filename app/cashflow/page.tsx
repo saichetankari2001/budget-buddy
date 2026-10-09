@@ -5,6 +5,7 @@ import { GlassPanel } from '@/components/ui/GlassPanel';
 import { AmbientBlobs } from '@/components/ui/AmbientBlobs';
 import { CashFlowClient } from './CashFlowClient';
 import { RollingForecastChart } from '@/components/charts/RollingForecastChart';
+import { SavingsGoalsPanel } from '@/components/savingsGoals/SavingsGoalsPanel';
 
 export default async function CashFlowPage() {
   const user = await getCurrentUser();
@@ -44,6 +45,7 @@ export default async function CashFlowPage() {
           <CashFlowClient initialIncomeSources={serializedIncomeSources} initialBills={serializedBills} />
         </GlassPanel>
         <RollingForecastChart />
+        <SavingsGoalsPanel />
       </main>
     </>
   );
