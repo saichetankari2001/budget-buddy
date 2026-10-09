@@ -1,16 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 test('signup, add an expense, and see it on the dashboard', async ({ page }) => {
-  // Extra headroom on the whole test, not just the signup assertion below: the consolidated
-  // /dashboard page this test loads now bundles what used to be four separate pages' worth of
-  // Prisma queries into one request (six-month expense aggregation, budgets, categories, the
-  // filtered-expenses query for the Expenses cell, income sources, bills), so it measurably takes
-  // longer to fully settle than any single original page did. Combined with real Neon free-tier
-  // latency, that can push this test past Playwright's 30s default test timeout even when nothing
-  // is actually broken (confirmed: the same run that timed out here showed a fully-rendered
-  // dashboard, including the "Add expense" button, in its final snapshot — and passed cleanly in
-  // 22s under a 60s timeout). Same reasoning as the existing extra headroom on the signup
-  // assertion just below, extended to the whole test now that the page it loads is heavier.
+  // Extra headroom on the whole test, not just the signup assertion below: this test does a real
+  // signup, a hard navigation to /expenses, an expense submission, and a hard navigation to
+  // /dashboard, each a separate real Prisma round-trip against a real Neon free-tier database —
+  // enough real I/O, even against today's lighter, split-out pages (Tasks 2-6 of this plan), to
+  // occasionally push past Playwright's 30s default under real latency without anything actually
+  // being broken. Same reasoning as the existing extra headroom on the signup assertion just
+  // below. (This comment previously described the pre-split consolidated /dashboard page this
+  // test used to load when /expenses was still a redirect to it — no longer accurate since Task 4
+  // made /expenses a real standalone page; corrected here while fixing the stale #expenses
+  // locator a few lines down, found live during this task's own full-suite run.)
   test.setTimeout(60_000);
 
   const email = `test-${Date.now()}@example.com`;
@@ -29,67 +29,60 @@ test('signup, add an expense, and see it on the dashboard', async ({ page }) => 
   await page.getByRole('button', { name: /add expense/i }).click();
   await page.getByLabel(/amount/i).fill('42.50');
   await page.getByLabel(/description/i).fill('Test lunch');
-  // Scoped to #expenses: on the consolidated dashboard, the Manage Budgets cell renders its own
-  // per-row "Save" button for every category, all simultaneously in the DOM alongside the expense
-  // form's "Save" button — an unscoped getByRole('button', { name: /save/i }) now matches all of
-  // them (strict-mode violation) where it used to be unambiguous on the old single-purpose page.
-  await page.locator('#expenses').getByRole('button', { name: /^save$/i }).click();
+  // No scoping needed: /expenses is now its own standalone page (Task 4 of this plan) with no
+  // Manage Budgets cell sharing the DOM — that cell lives on its own /budgets page now, so this
+  // form's "Save" button is the only one on the page. The old #expenses-scoped locator here
+  // targeted a section-anchor id from the pre-split consolidated dashboard that no longer exists
+  // anywhere in the app's markup (confirmed via repo-wide search) — found live during this task's
+  // own full-suite run, where the stale locator matched zero elements and hung until timeout.
+  await page.getByRole('button', { name: /^save$/i }).click();
 
   await expect(page.getByText('Test lunch')).toBeVisible();
 
   await page.goto('/dashboard');
-  // Scoped to the "Total spent this month" stat card: an unscoped getByText('$42.50') would also
-  // match the just-added expense row's own amount text in the Expenses cell below, so it could
-  // never actually fail even if the stat card itself were broken. Matches the scoping pattern
-  // already used elsewhere in this file/suite (e.g. the Budget progress heading scoping in
-  // e2e/accessibility.spec.ts).
+  // Scoped to the "Total spent this month" stat card for a clear, specific assertion target
+  // (matches the scoping pattern used elsewhere in this suite, e.g. e2e/accessibility.spec.ts).
+  // The original ambiguity this guarded against (an unscoped getByText('$42.50') also matching
+  // the just-added expense row's own amount text in an Expenses cell further down the same page)
+  // no longer applies — Task 5 of this plan rebuilt /dashboard as a lean home screen with no
+  // expense list on it at all, so scoping here is now just good practice, not a strict-mode fix.
   const totalSpentCard = page.getByText('Total spent this month').locator('..');
   await expect(totalSpentCard.getByText('$42.50')).toBeVisible();
 });
 
-test('old page routes redirect to the matching section of the consolidated dashboard', async ({ page }) => {
-  // Same reasoning as the first test's test.setTimeout() above, with more headroom: this test
-  // does a signup, a Money Cycle start, AND three separate hard navigations to old routes, each
-  // one a full reload of the now-heavier consolidated /dashboard page. Empirically confirmed at
-  // risk under the default 30s test timeout — reproduced 3/3 timeouts in isolation before this
-  // fix (`page.goto('/budgets')` never resolving within the window), and reliably passing in
-  // 9.5–35.3s once given real headroom.
-  test.setTimeout(90_000);
+test('expenses, budgets, and cash flow are real pages, not redirects to the dashboard', async ({ page }) => {
+  test.setTimeout(60_000);
 
-  const email = `test-redirects-${Date.now()}@example.com`;
+  const email = `test-real-routes-${Date.now()}@example.com`;
   await page.goto('/signup');
   await page.getByPlaceholder('Email').fill(email);
-  await page.getByPlaceholder('Password (8+ characters)').fill('long-enough-password');
+  await page.getByPlaceholder('Password (8+ characters)').fill('longenough123');
   await page.getByRole('button', { name: /sign up/i }).click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
-
-  // Starting a Money Cycle before the redirect checks below means the Money Coach history list,
-  // the Spending Breakdown table, and both charts all have real content to render — which is what
-  // exposed the bug these toBeInViewport() assertions guard against (see comment below).
-  await page.getByLabel(/how much do you have/i).fill('500');
-  await page.getByLabel('Until when', { exact: true }).fill('2026-12-31');
-  await page.getByRole('button', { name: /^start$/i }).click();
-  await expect(page.getByText('Days left')).toBeVisible({ timeout: 15000 });
+  await page.waitForURL(/\/dashboard/);
 
   await page.goto('/expenses');
-  await expect(page).toHaveURL(/\/dashboard#expenses$/);
-  // Regression guard: a hard navigation to /expenses lands on /dashboard#expenses via the URL
-  // alone even if the browser never actually scrolled there — found live during this task's own
-  // verification. The browser's native on-load anchor scroll fires before the Money Coach
-  // history list, Spending Breakdown table, and charts above #expenses finish hydrating and
-  // growing the page, which left the section up to ~1300px below the viewport before the fix
-  // (components/ui/Header.tsx now re-settles the scroll via a ResizeObserver on document.body).
-  await expect(page.locator('#expenses')).toBeInViewport({ ratio: 0.5 });
+  await expect(page).toHaveURL(/\/expenses$/);
+  // level: 1 — the brief's given selector (unscoped getByRole('heading', { name: 'Expenses' }))
+  // is a strict-mode violation on the real page: app/expenses/page.tsx's <h1>Expenses</h1> page
+  // title AND its GlassPanel's <h2>Expenses</h2> section heading (wrapping ExpensesClient) both
+  // have the exact accessible name "Expenses" — found live running this suite. Scoping to the
+  // page's own <h1> is what actually proves "this is the real Expenses page", which is this
+  // test's intent anyway.
+  await expect(page.getByRole('heading', { name: 'Expenses', level: 1 })).toBeVisible();
 
   await page.goto('/budgets');
-  await expect(page).toHaveURL(/\/dashboard#budgets$/);
-  // Same regression guard as above — #budgets sits even further down the page, so it was the
-  // worst-affected section before the fix (over 6000px below the viewport).
-  await expect(page.locator('#budgets')).toBeInViewport({ ratio: 0.5 });
+  await expect(page).toHaveURL(/\/budgets$/);
+  // level: 1 — same reasoning as the /expenses heading above: the default case-insensitive
+  // substring match also resolves to app/budgets/page.tsx's <h2>Manage budgets</h2> ("budgets" is
+  // a substring of "Manage budgets"), a second strict-mode violation found live running this
+  // suite alongside the /expenses one.
+  await expect(page.getByRole('heading', { name: 'Budgets', level: 1 })).toBeVisible();
 
   await page.goto('/cashflow');
-  await expect(page).toHaveURL(/\/dashboard#cashflow$/);
-  await expect(page.locator('#cashflow')).toBeInViewport({ ratio: 0.5 });
+  await expect(page).toHaveURL(/\/cashflow$/);
+  // level: 1 for consistency with the two checks above, even though Cash Flow's own sub-headings
+  // ("Income sources", "Bills") don't currently collide with this name.
+  await expect(page.getByRole('heading', { name: 'Cash Flow', level: 1 })).toBeVisible();
 });
 
 test.describe('expenses hydration', () => {
@@ -107,9 +100,12 @@ test.describe('expenses hydration', () => {
     page,
   }) => {
     // Same reasoning as the first test's test.setTimeout() above: this test signs up, adds an
-    // expense, then does a fresh hard navigation that reloads the now-heavier consolidated
-    // /dashboard page. Empirically at risk under the default 30s test timeout (reproduced a
-    // timeout 1/3 isolated runs before this fix) despite typically completing in 9-12s.
+    // expense, then does a fresh hard navigation that reloads /expenses, each a real Prisma
+    // round-trip against a real Neon free-tier database. Empirically at risk under the default
+    // 30s test timeout (reproduced a timeout 1/3 isolated runs before this fix) despite typically
+    // completing in 9-12s. (Previously described this as reloading "the now-heavier consolidated
+    // /dashboard page" — no longer accurate since Task 4 made /expenses its own standalone page;
+    // corrected here while fixing the stale #expenses locator a few lines down.)
     test.setTimeout(60_000);
 
     const email = `test-expenses-hydration-${Date.now()}@example.com`;
@@ -124,11 +120,17 @@ test.describe('expenses hydration', () => {
     await page.getByRole('button', { name: /add expense/i }).click();
     await page.getByLabel(/amount/i).fill('25.00');
     await page.getByLabel(/description/i).fill('Groceries');
-    await page.locator('#expenses').getByRole('button', { name: /^save$/i }).click();
+    // No scoping needed: /expenses is now its own standalone page (Task 4 of this plan) with no
+    // Manage Budgets cell sharing the DOM, so this form's "Save" button is the only one on the
+    // page. The old #expenses-scoped locator here targeted a section-anchor id from the pre-split
+    // consolidated dashboard that no longer exists anywhere in the app's markup — found live
+    // during this task's own full-suite run, where the stale locator matched zero elements and
+    // hung until timeout.
+    await page.getByRole('button', { name: /^save$/i }).click();
     await expect(page.getByText('Groceries', { exact: true })).toBeVisible();
 
     // The expense now exists in the DB. Every prior add in this test only set local client state
-    // (ExpensesClient's handleCreate), so app/dashboard/page.tsx's server-rendered
+    // (ExpensesClient's handleCreate), so app/expenses/page.tsx's server-rendered
     // `serializedExpenses` prop was empty every time this page was hydrated so far. A FRESH
     // navigation now is the first point where the server actually renders a real expense's
     // formatted date via toLocaleDateString() — the same text the client then re-renders during

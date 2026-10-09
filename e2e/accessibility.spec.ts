@@ -96,10 +96,13 @@ test('expenses page with a submitted expense shows its edit/delete icons and has
   await page.getByRole('button', { name: /add expense/i }).click();
   await page.getByLabel(/amount/i).fill('42.50');
   await page.getByLabel(/description/i).fill('Groceries');
-  // Scoped to #expenses: on the consolidated dashboard, the Manage Budgets cell's per-row "Save"
-  // buttons are also in the DOM at this point, so an unscoped locator matches multiple elements
-  // (strict-mode violation) — see the same fix/comment in e2e/dashboard.spec.ts.
-  await page.locator('#expenses').getByRole('button', { name: /^save$/i }).click();
+  // No scoping needed: /expenses is now its own standalone page (Task 4 of this plan) with no
+  // Manage Budgets cell sharing the DOM — that cell lives on its own /budgets page now, so this
+  // form's "Save" button is the only one on the page. The old #expenses-scoped locator here
+  // targeted a section-anchor id from the pre-split consolidated dashboard that no longer exists
+  // anywhere in the app's markup (confirmed via repo-wide search) — found live during this task's
+  // own full-suite run, where the stale locator matched zero elements and hung until timeout.
+  await page.getByRole('button', { name: /^save$/i }).click();
 
   await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
@@ -111,7 +114,12 @@ test('expenses page with a submitted expense shows its edit/delete icons and has
 test('budgets page has no WCAG 2.1 A/AA violations', async ({ page }) => {
   await signUp(page, 'a11y-budgets');
   await page.goto('/budgets');
-  await page.waitForSelector('#budgets');
+  // Replaces the old `page.waitForSelector('#budgets')`: that id was a section anchor on the
+  // pre-split consolidated dashboard and no longer exists anywhere in the app's markup now that
+  // /budgets is its own standalone page (Task 2 of this plan) — the stale selector matched zero
+  // elements and hung until timeout, found live during this task's own full-suite run. /budgets'
+  // content is server-rendered, so waiting for its real h1 is sufficient readiness evidence.
+  await expect(page.getByRole('heading', { name: 'Budgets', level: 1 })).toBeVisible();
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
   expect(results.violations).toEqual([]);
 });
@@ -122,22 +130,36 @@ test('dashboard with a saved budget renders progress bars and has no WCAG 2.1 A/
   await signUp(page, 'a11y-budget-progress');
   await page.goto('/budgets');
 
-  // Scoped to #budgets: an unscoped page.locator('li').first() only ever happened to work because
-  // every other <li>-rendering section on the consolidated page is empty for a fresh signup — any
-  // future change adding content to an earlier list would silently break this test's intent
-  // without necessarily failing it. Matches the #expenses scoping pattern used elsewhere in this
-  // suite (see e2e/dashboard.spec.ts).
-  const firstRow = page.locator('#budgets').locator('li').first();
+  // Scoped to the "Manage budgets" panel (via its own heading, same idiom as the "Budget
+  // progress" scoping below): the old #budgets-scoped locator here targeted a section-anchor id
+  // from the pre-split consolidated dashboard that no longer exists anywhere in the app's markup
+  // — found live during this task's own full-suite run, where the stale locator matched zero
+  // elements and hung until timeout. An initial fix (plain `page.locator('li').first()`, reasoning
+  // that /budgets' only other list, Budget progress, starts empty for a fresh signup) was also
+  // confirmed broken live: the Save click below populates that EARLIER Budget progress list with
+  // its own real <li> (same render, no reload — BudgetsClient's router.refresh()), so by the time
+  // `firstRow` is re-queried for the "Remove" button, unscoped "first li" had already shifted to
+  // Budget progress's new row instead of staying on the Manage budgets row that was actually
+  // saved. Scoping to the Manage budgets panel specifically avoids this regardless of what renders
+  // above it.
+  const manageBudgetsPanel = page.getByRole('heading', { name: 'Manage budgets' }).locator('..');
+  const firstRow = manageBudgetsPanel.locator('li').first();
   const categoryName = (await firstRow.locator('span.font-medium').first().innerText()).trim();
   await firstRow.locator('input[type="number"]').fill('500');
   await firstRow.getByRole('button', { name: 'Save' }).click();
-  // Confirms the save actually landed (Remove only renders once monthlyLimit !== null)
-  // before navigating away, so the dashboard load below is guaranteed to see a real budget.
+  // Confirms the save actually landed (Remove only renders once monthlyLimit !== null).
   await expect(firstRow.getByRole('button', { name: 'Remove' })).toBeVisible();
 
-  await page.goto('/dashboard');
-  const budgetCard = page.getByRole('heading', { name: 'Budget progress' }).locator('..');
-  await expect(budgetCard.getByText(categoryName, { exact: true })).toBeVisible();
+  // Budget progress now lives only on /budgets itself — Task 5 of this plan rebuilt /dashboard as
+  // a lean home screen with no Budget progress section at all (confirmed live: the rendered
+  // /dashboard DOM has no "Budget progress" heading anywhere, just the hero, 2 stats, quick-access
+  // strip, Money Coach, and Spending-by-category chart). The old `page.goto('/dashboard')` +
+  // Budget-progress-heading check this test used to do is therefore testing a section that no
+  // longer exists there. BudgetsClient's handleSave() already calls `router.refresh()` on save,
+  // which re-renders this same /budgets page's server-fetched Budget progress panel in place —
+  // no navigation needed to see it reflect the new limit.
+  const budgetProgressPanel = page.getByRole('heading', { name: 'Budget progress' }).locator('..');
+  await expect(budgetProgressPanel.getByText(categoryName, { exact: true })).toBeVisible();
 
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
   expect(results.violations).toEqual([]);
@@ -154,8 +176,8 @@ test('cashflow page with an active cycle and a bill shows the projection list an
   page,
 }) => {
   // Same reasoning as the test.setTimeout() headroom added for the consolidated dashboard in
-  // e2e/dashboard.spec.ts: this test loads the heavier consolidated /dashboard page twice (once
-  // for the cycle start, once via the /cashflow -> /dashboard#cashflow redirect), then adds a
+  // e2e/dashboard.spec.ts: this test loads the dashboard page once (for the cycle start) and the
+  // now-direct, real /cashflow page once, then adds a
   // bill, which triggers a bill-list refresh AND a full /api/cycles/active projection refetch —
   // itself several sequential Prisma queries (expenses, bills, income sources, aggregates). Under
   // real Neon free-tier latency this reliably failed the "Rent -$800.00" projection-row assertion
