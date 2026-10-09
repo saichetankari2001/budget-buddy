@@ -43,6 +43,7 @@ model User {
   budgets           Budget[]
   moneyCycles       MoneyCycle[]
   pushSubscriptions PushSubscription[]
+  savingsGoals      SavingsGoal[]
 }
 
 model Category {
@@ -187,4 +188,28 @@ model CycleCategoryBudget {
   createdAt         DateTime   @default(now())
 
   @@index([cycleId])
+}
+
+model SavingsGoal {
+  id            String                @id @default(cuid())
+  userId        String
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  targetAmount  Decimal               @db.Decimal(10, 2)
+  targetDate    DateTime?
+  createdAt     DateTime              @default(now())
+  contributions SavingsContribution[]
+
+  @@unique([userId, name])
+}
+
+model SavingsContribution {
+  id            String      @id @default(cuid())
+  savingsGoalId String
+  savingsGoal   SavingsGoal @relation(fields: [savingsGoalId], references: [id], onDelete: Cascade)
+  amount        Decimal     @db.Decimal(10, 2)
+  date          DateTime
+  createdAt     DateTime    @default(now())
+
+  @@index([savingsGoalId, date])
 }
