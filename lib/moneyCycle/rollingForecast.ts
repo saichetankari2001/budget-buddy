@@ -26,7 +26,7 @@ export async function computeRollingForecast(
   const today = startOfSydneyDay(rawNow);
   const windowEnd = new Date(today.getTime() + windowDays * MS_PER_DAY);
 
-  const billTemplates = await prisma.bill.findMany({ where: { userId } });
+  const billTemplates = await prisma.bill.findMany({ where: { userId }, orderBy: { dueDate: 'asc' } });
   const incomeSources = await prisma.incomeSource.findMany({ where: { userId, type: 'FIXED' } });
   // Legacy recurring Expense templates (the expense form's "repeats" checkbox) are a real, live
   // outflow source — projectCycle.ts already folds these into its own projection via

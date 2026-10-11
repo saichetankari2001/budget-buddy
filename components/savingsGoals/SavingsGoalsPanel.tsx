@@ -48,6 +48,13 @@ export function SavingsGoalsPanel() {
     }
   }
 
+  async function handleDeleteGoal(goal: SavingsGoal) {
+    const res = await fetch(`/api/savings-goals/${goal.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      refetch();
+    }
+  }
+
   async function handleContribute(goal: SavingsGoal) {
     const amount = Number(contributionAmount);
     const res = await fetch(`/api/savings-goals/${goal.id}/contributions`, {
@@ -95,6 +102,16 @@ export function SavingsGoalsPanel() {
                     {formatCurrency(goal.contributedAmount)} / {formatCurrency(goal.targetAmount)}
                   </span>
                 </div>
+                {goal.targetDate && (
+                  <p className="mb-1 text-xs text-muted">
+                    {(() => {
+                      const days = Math.ceil((new Date(goal.targetDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                      if (days < 0) return `Target date passed (${new Date(goal.targetDate).toLocaleDateString('en-AU')})`;
+                      if (days === 0) return 'Target date is today';
+                      return `${days} day${days === 1 ? '' : 's'} left · ${new Date(goal.targetDate).toLocaleDateString('en-AU')}`;
+                    })()}
+                  </p>
+                )}
                 <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
                   <div className="h-full rounded-full bg-success transition-all duration-300" style={{ width: `${percent}%` }} />
                 </div>
@@ -112,11 +129,19 @@ export function SavingsGoalsPanel() {
                       />
                     </label>
                     <Button onClick={() => handleContribute(goal)}>Save</Button>
+                    <Button variant="secondary" onClick={() => handleDeleteGoal(goal)}>
+                      Delete
+                    </Button>
                   </div>
                 ) : (
-                  <Button variant="secondary" onClick={() => setContributingId(goal.id)} className="mt-2">
-                    Add contribution
-                  </Button>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button variant="secondary" onClick={() => setContributingId(goal.id)}>
+                      Add contribution
+                    </Button>
+                    <Button variant="secondary" onClick={() => handleDeleteGoal(goal)}>
+                      Delete
+                    </Button>
+                  </div>
                 )}
               </li>
             );

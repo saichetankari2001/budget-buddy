@@ -41,11 +41,13 @@ export default async function CashFlowPage() {
       <main className="relative mx-auto max-w-4xl overflow-hidden px-4 py-8">
         <AmbientBlobs />
         <h1 className="mb-6 font-heading text-2xl font-semibold text-foreground">Cash Flow</h1>
-        <GlassPanel elevation={1}>
-          <CashFlowClient initialIncomeSources={serializedIncomeSources} initialBills={serializedBills} />
-        </GlassPanel>
-        <RollingForecastChart />
-        <SavingsGoalsPanel />
+        <div className="flex flex-col gap-6">
+          <GlassPanel elevation={1}>
+            <CashFlowClient initialIncomeSources={serializedIncomeSources} initialBills={serializedBills} />
+          </GlassPanel>
+          <RollingForecastChart />
+          <SavingsGoalsPanel />
+        </div>
       </main>
     </>
   );

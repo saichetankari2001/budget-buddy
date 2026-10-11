@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { formatCurrency } from '@/lib/utils/currency';
+import { useRealtimeCycleUpdates } from '@/hooks/useRealtimeCycleUpdates';
 
 interface ForecastDay {
   date: string;
@@ -31,24 +32,23 @@ interface RollingForecastResponse {
 export function RollingForecastChart() {
   const [data, setData] = useState<RollingForecastResponse | null | undefined>(undefined);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refetch = useCallback(() => {
     fetch('/api/cycles/active/rolling-forecast')
       .then(async (res) => {
-        if (cancelled) return;
         if (!res.ok) {
           setData(null);
           return;
         }
         setData(await res.json());
       })
-      .catch(() => {
-        if (!cancelled) setData(null);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => setData(null));
   }, []);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  useRealtimeCycleUpdates(refetch);
 
   if (data === undefined || data === null) {
     return null;
