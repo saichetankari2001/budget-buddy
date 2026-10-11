@@ -225,6 +225,46 @@ test('cashflow page with an active cycle and a bill shows the projection list an
   expect(results.violations).toEqual([]);
 });
 
+test('cashflow page with a savings goal and a rolling forecast has no WCAG 2.1 A/AA violations', async ({
+  page,
+}) => {
+  await signUp(page, 'a11y-savings-rolling');
+  // Starting the cycle below creates a real income source ("how much do you have") that renders in
+  // CashFlowClient's Income sources list, whose <li> plays the same animate-fade-slide-in opacity
+  // animation as the expenses/projection rows above (gated by the CSS `motion-reduce:` Tailwind
+  // variant, not JS matchMedia) — same root cause, same fix as those two tests: the global
+  // forceReducedMotion in beforeEach only stubs matchMedia for Framer Motion's useReducedMotion(),
+  // it does not satisfy the CSS `@media (prefers-reduced-motion)` query this class relies on.
+  // Without this, axe-core caught a real, reproducible transient color-contrast violation on the
+  // $500.00 income source row mid-fade-in during this task's own full-suite run.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/dashboard');
+  await page.getByLabel(/how much do you have/i).fill('500');
+  await page.getByLabel('Until when', { exact: true }).fill('2026-10-20');
+  await page.getByRole('button', { name: /^start$/i }).click();
+  await expect(page.getByText('Days left')).toBeVisible({ timeout: 15000 });
+
+  await page.goto('/cashflow');
+  // RollingForecastChart is self-fetching and renders nothing (zero height) until its fetch
+  // resolves. Without waiting for it to settle first, its fetch can resolve WHILE the test is
+  // mid-interaction with the SavingsGoalForm below it, growing the page and pushing the "Add
+  // goal" submit button out of the viewport exactly as Playwright attempts the click — caught
+  // live during this task's own run (1 failure in 5 isolated runs, "element is outside of the
+  // viewport" after a successful scroll). Waiting for "Looking ahead" first stabilizes the
+  // layout before any interaction below it begins.
+  await expect(page.getByText('Looking ahead')).toBeVisible({ timeout: 15000 });
+  await page.getByRole('button', { name: /add goal/i }).click();
+  await page.getByLabel(/goal name/i).fill('Laptop fund');
+  await page.getByLabel(/target amount/i).fill('1500');
+  await page.getByRole('button', { name: /^add goal$/i }).click();
+
+  await expect(page.getByText('Laptop fund')).toBeVisible();
+  await expect(page.getByText('Looking ahead')).toBeVisible();
+
+  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test('privacy page has no WCAG 2.1 A/AA violations', async ({ page }) => {
   await page.goto('/privacy');
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
