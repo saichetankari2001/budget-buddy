@@ -48,6 +48,7 @@ describe('POST /api/cycles/chat', () => {
     expect(prismaMock.coachMessage.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ kind: 'CHAT', content: 'Done — updated to $700.' }) })
     );
+    expect(getCurrentUser).toHaveBeenCalledWith(expect.anything());
   });
 
   it('excludes the just-saved user message from the history passed to generateChatReply', async () => {

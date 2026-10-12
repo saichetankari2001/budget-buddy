@@ -19,7 +19,7 @@ const HISTORY_LIMIT = 10;
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(request);
     if (!user) {
       throw new AppError(401, 'Not authenticated');
     }

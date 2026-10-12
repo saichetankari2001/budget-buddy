@@ -37,6 +37,7 @@ describe('GET /api/cycles/active', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toBeNull();
+    expect(getCurrentUser).toHaveBeenCalledWith(expect.anything());
   });
 
   it('computes remainingAmount/daysRemaining/safeToSpend for an active, non-past-due cycle', async () => {

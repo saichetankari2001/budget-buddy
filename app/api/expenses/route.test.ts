@@ -30,6 +30,7 @@ describe('GET /api/expenses', () => {
     expect(prismaMock.expense.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: 'user_1' } })
     );
+    expect(getCurrentUser).toHaveBeenCalledWith(expect.anything());
   });
 
   it('converts amount to a number in the response body', async () => {

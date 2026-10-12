@@ -31,6 +31,8 @@ describe('POST /api/auth/login', () => {
 
     expect(res.status).toBe(200);
     expect(res.cookies.get('token')?.value).toBeTruthy();
+    const body = await res.json();
+    expect(body.token).toBeTruthy();
   });
 
   it('returns 401 for a wrong password', async () => {

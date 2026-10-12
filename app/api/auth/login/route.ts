@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const token = await signToken({ userId: user.id, email: user.email });
 
-    const response = NextResponse.json({ id: user.id, email: user.email }, { status: 200 });
+    const response = NextResponse.json({ id: user.id, email: user.email, token }, { status: 200 });
     response.cookies.set('token', token, {
       httpOnly: true,
       secure: request.headers.get('x-forwarded-proto') === 'https',

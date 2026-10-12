@@ -76,6 +76,7 @@ describe('POST /api/cycles', () => {
     expect(prismaMock.moneyCycle.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: 'user_1', startingAmount: 500 }) })
     );
+    expect(getCurrentUser).toHaveBeenCalledWith(expect.anything());
   });
 
   it('publishes a cycle-updated event after successfully creating a cycle', async () => {

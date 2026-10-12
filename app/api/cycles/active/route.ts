@@ -5,9 +5,9 @@ import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { projectCycle } from '@/lib/moneyCycle/projectCycle';
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(request);
     if (!user) {
       throw new AppError(401, 'Not authenticated');
     }

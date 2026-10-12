@@ -26,16 +26,17 @@ describe('GET /api/categories', () => {
       { id: 'cat_1', userId: 'user_1', name: 'Food', color: '#f97316', createdAt: new Date() },
     ]);
 
-    const res = await GET();
+    const res = await GET(new NextRequest('http://localhost/api/categories'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveLength(1);
     expect(prismaMock.category.findMany).toHaveBeenCalledWith({ where: { userId: 'user_1' } });
+    expect(getCurrentUser).toHaveBeenCalledWith(expect.anything());
   });
 
   it('returns 401 when not logged in', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null);
-    const res = await GET();
+    const res = await GET(new NextRequest('http://localhost/api/categories'));
     expect(res.status).toBe(401);
   });
 });

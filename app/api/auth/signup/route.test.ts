@@ -30,7 +30,8 @@ describe('POST /api/auth/signup', () => {
 
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body).toEqual({ id: 'user_1', email: 'a@example.com' });
+    expect(body).toEqual({ id: 'user_1', email: 'a@example.com', token: expect.anything() });
+    expect(body.token).toBeTruthy();
     expect(res.cookies.get('token')?.value).toBeTruthy();
     expect(prismaMock.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
