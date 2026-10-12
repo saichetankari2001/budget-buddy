@@ -6,7 +6,7 @@ describe('generatePlanMessage', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
-    vi.stubEnv('GEMINI_API_KEY', 'test-key');
+    vi.stubEnv('GROQ_API_KEY', 'test-key');
   });
 
   afterEach(() => {
@@ -14,19 +14,17 @@ describe('generatePlanMessage', () => {
     vi.unstubAllEnvs();
   });
 
-  it('returns the AI-generated text when the Gemini call succeeds', async () => {
+  it('returns the AI-generated text when the Groq call succeeds', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({
-        candidates: [{ content: { parts: [{ text: 'Here is your plan for the next 10 days.' }] } }],
-      }),
+      json: async () => ({ choices: [{ message: { content: 'Here is your plan for the next 10 days.' } }] }),
     } as Response);
 
     const result = await generatePlanMessage(input);
     expect(result).toBe('Here is your plan for the next 10 days.');
   });
 
-  it('falls back to the template message when the Gemini call throws', async () => {
+  it('falls back to the template message when the Groq call throws', async () => {
     vi.mocked(fetch).mockRejectedValue(new Error('network error'));
 
     const result = await generatePlanMessage(input);
@@ -34,7 +32,7 @@ describe('generatePlanMessage', () => {
     expect(result).toContain('$30.00');
   });
 
-  it('falls back to the template message when Gemini returns a non-ok response', async () => {
+  it('falls back to the template message when Groq returns a non-ok response', async () => {
     vi.mocked(fetch).mockResolvedValue({ ok: false, status: 429 } as Response);
 
     const result = await generatePlanMessage(input);
@@ -48,52 +46,52 @@ describe('generatePlanMessage', () => {
     expect(result).toContain('$500.00');
   });
 
-  it('includes the shortfall warning in the prompt sent to Gemini when present', async () => {
+  it('includes the shortfall warning in the prompt sent to Groq when present', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+      json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
     } as Response);
 
     await generatePlanMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
 
     const [, options] = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse(options!.body as string);
-    const prompt = body.contents[0].parts[0].text;
+    const prompt = body.messages[0].content;
     expect(prompt).toContain("you're projected to be short before rent clears on the 30th");
   });
 
   it('omits any shortfall text from the prompt when shortfallWarning is not present', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+      json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
     } as Response);
 
     await generatePlanMessage(input);
 
     const [, options] = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse(options!.body as string);
-    const prompt = body.contents[0].parts[0].text;
+    const prompt = body.messages[0].content;
     expect(prompt).not.toContain('Importantly:');
   });
 
-  it('appends the shortfall warning to the fallback message when the Gemini call fails', async () => {
+  it('appends the shortfall warning to the fallback message when the Groq call fails', async () => {
     vi.mocked(fetch).mockRejectedValue(new Error('network error'));
 
     const result = await generatePlanMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
     expect(result).toContain("you're projected to be short before rent clears on the 30th");
   });
 
-  it('includes the previous cycle score in the prompt sent to Gemini when present', async () => {
+  it('includes the previous cycle score in the prompt sent to Groq when present', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+      json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
     } as Response);
 
     await generatePlanMessage({ ...input, previousCycleScore: 78 });
 
     const [, options] = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse(options!.body as string);
-    const prompt = body.contents[0].parts[0].text;
+    const prompt = body.messages[0].content;
     expect(prompt).toContain('78');
   });
 });
@@ -109,7 +107,7 @@ describe('generateCheckInMessage', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
-    vi.stubEnv('GEMINI_API_KEY', 'test-key');
+    vi.stubEnv('GROQ_API_KEY', 'test-key');
   });
 
   afterEach(() => {
@@ -117,10 +115,10 @@ describe('generateCheckInMessage', () => {
     vi.unstubAllEnvs();
   });
 
-  it('returns the AI-generated text when the Gemini call succeeds', async () => {
+  it('returns the AI-generated text when the Groq call succeeds', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: 'Ease off a little today.' }] } }] }),
+      json: async () => ({ choices: [{ message: { content: 'Ease off a little today.' } }] }),
     } as Response);
 
     const result = await generateCheckInMessage(input);
@@ -134,52 +132,52 @@ describe('generateCheckInMessage', () => {
     expect(result).toContain('spending a bit faster than planned');
   });
 
-  it('includes the shortfall warning in the prompt sent to Gemini when present', async () => {
+  it('includes the shortfall warning in the prompt sent to Groq when present', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+      json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
     } as Response);
 
     await generateCheckInMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
 
     const [, options] = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse(options!.body as string);
-    const prompt = body.contents[0].parts[0].text;
+    const prompt = body.messages[0].content;
     expect(prompt).toContain("you're projected to be short before rent clears on the 30th");
   });
 
   it('omits any shortfall text from the prompt when shortfallWarning is not present', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+      json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
     } as Response);
 
     await generateCheckInMessage(input);
 
     const [, options] = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse(options!.body as string);
-    const prompt = body.contents[0].parts[0].text;
+    const prompt = body.messages[0].content;
     expect(prompt).not.toContain('Importantly:');
   });
 
-  it('appends the shortfall warning to the fallback message when the Gemini call fails', async () => {
+  it('appends the shortfall warning to the fallback message when the Groq call fails', async () => {
     vi.mocked(fetch).mockRejectedValue(new Error('network error'));
 
     const result = await generateCheckInMessage({ ...input, shortfallWarning: "you're projected to be short before rent clears on the 30th" });
     expect(result).toContain("you're projected to be short before rent clears on the 30th");
   });
 
-  it('includes the health score and delta in the prompt sent to Gemini when present', async () => {
+  it('includes the health score and delta in the prompt sent to Groq when present', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+      json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
     } as Response);
 
     await generateCheckInMessage({ ...input, healthScore: { total: 82, delta: 5 } });
 
     const [, options] = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse(options!.body as string);
-    const prompt = body.contents[0].parts[0].text;
+    const prompt = body.messages[0].content;
     expect(prompt).toContain('82');
     expect(prompt).toContain('5');
   });

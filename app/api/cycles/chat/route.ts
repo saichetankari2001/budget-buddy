@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     });
     const history: ChatHistoryMessage[] = priorMessages
       .reverse()
-      .map((m) => ({ role: m.kind === 'USER' ? 'user' : 'model', content: m.content }));
+      .map((m) => ({ role: m.kind === 'USER' ? 'user' : 'assistant', content: m.content }));
 
     const reply = await generateChatReply(message, history, {
       updateCycleAmount: (newAmount: number) => updateCycleAmount(user.userId, newAmount),

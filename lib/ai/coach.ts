@@ -1,34 +1,34 @@
 import { buildFallbackPlanMessage, buildFallbackCheckInMessage } from '@/lib/utils/moneyCycle';
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL = 'openai/gpt-oss-120b';
 const TIMEOUT_MS = 9000;
 
-async function callGemini(prompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
+async function callGroq(prompt: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not set');
+    throw new Error('GROQ_API_KEY is not set');
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const response = await fetch(GEMINI_URL, {
+    const response = await fetch(GROQ_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: MODEL, messages: [{ role: 'user', content: prompt }] }),
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API returned ${response.status}`);
+      throw new Error(`Groq API returned ${response.status}`);
     }
 
     const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data?.choices?.[0]?.message?.content;
     if (typeof text !== 'string' || text.length === 0) {
-      throw new Error('Gemini API returned an unexpected response shape');
+      throw new Error('Groq API returned an unexpected response shape');
     }
 
     return text;
@@ -63,7 +63,7 @@ export async function generatePlanMessage(input: {
     `of why a daily safe-to-spend limit like this helps them stay in control. Do not use markdown formatting.`;
 
   try {
-    return await callGemini(prompt);
+    return await callGroq(prompt);
   } catch {
     return buildFallbackPlanMessage(input);
   }
@@ -103,7 +103,7 @@ export async function generateCheckInMessage(input: {
     `score changed, mention what it means in one plain-language phrase. Do not use markdown formatting.`;
 
   try {
-    return await callGemini(prompt);
+    return await callGroq(prompt);
   } catch {
     return buildFallbackCheckInMessage(input);
   }

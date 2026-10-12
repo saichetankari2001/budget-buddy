@@ -1,121 +1,145 @@
 import { startOfSydneyDay } from '@/lib/utils/moneyCycle';
 
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL = 'openai/gpt-oss-120b';
 const TIMEOUT_MS = 9000;
 
 const TOOLS = [
   {
-    functionDeclarations: [
-      {
-        name: 'update_cycle_amount',
-        description: "Update the starting amount of the user's active money cycle, in Australian dollars",
-        parameters: {
-          type: 'object',
-          properties: { newAmount: { type: 'number', description: 'The new starting amount in AUD' } },
-          required: ['newAmount'],
+    type: 'function',
+    function: {
+      name: 'update_cycle_amount',
+      description: "Update the starting amount of the user's active money cycle, in Australian dollars",
+      parameters: {
+        type: 'object',
+        properties: { newAmount: { type: 'number', description: 'The new starting amount in AUD' } },
+        required: ['newAmount'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cancel_cycle',
+      description: "Cancel the user's active money cycle entirely",
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_income_source',
+      description: "Add a new income source for the user — a job, gig, or any recurring or irregular way they earn money",
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'A short name for this income source, e.g. "Casual job" or "Uber"' },
+          type: { type: 'string', enum: ['FIXED', 'IRREGULAR'], description: 'FIXED if the amount and schedule are predictable; IRREGULAR if the amount varies (e.g. gig work)' },
+          amount: { type: 'number', description: 'The amount per occurrence in AUD, only for FIXED sources' },
+          recurrenceInterval: { type: 'string', enum: ['WEEKLY', 'MONTHLY', 'YEARLY'], description: 'How often it recurs, only for FIXED sources' },
+          startDate: { type: 'string', description: 'ISO date string for when this income starts' },
         },
+        required: ['name', 'type', 'startDate'],
       },
-      {
-        name: 'cancel_cycle',
-        description: "Cancel the user's active money cycle entirely",
-        parameters: { type: 'object', properties: {} },
-      },
-      {
-        name: 'add_income_source',
-        description: "Add a new income source for the user — a job, gig, or any recurring or irregular way they earn money",
-        parameters: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'A short name for this income source, e.g. "Casual job" or "Uber"' },
-            type: { type: 'string', enum: ['FIXED', 'IRREGULAR'], description: 'FIXED if the amount and schedule are predictable; IRREGULAR if the amount varies (e.g. gig work)' },
-            amount: { type: 'number', description: 'The amount per occurrence in AUD, only for FIXED sources' },
-            recurrenceInterval: { type: 'string', enum: ['WEEKLY', 'MONTHLY', 'YEARLY'], description: 'How often it recurs, only for FIXED sources' },
-            startDate: { type: 'string', description: 'ISO date string for when this income starts' },
-          },
-          required: ['name', 'type', 'startDate'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'log_income',
+      description: "Log an actual amount of money the user just received from an existing income source",
+      parameters: {
+        type: 'object',
+        properties: {
+          sourceName: { type: 'string', description: 'The name of the income source this money came from' },
+          amount: { type: 'number', description: 'The amount received, in AUD' },
         },
+        required: ['sourceName', 'amount'],
       },
-      {
-        name: 'log_income',
-        description: "Log an actual amount of money the user just received from an existing income source",
-        parameters: {
-          type: 'object',
-          properties: {
-            sourceName: { type: 'string', description: 'The name of the income source this money came from' },
-            amount: { type: 'number', description: 'The amount received, in AUD' },
-          },
-          required: ['sourceName', 'amount'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_bill',
+      description: "Add a new bill — a future obligation the user needs to pay on a specific date",
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'A short name for this bill, e.g. "Rent" or "Phone bill"' },
+          amount: { type: 'number', description: 'The amount owed, in AUD' },
+          dueDate: { type: 'string', description: 'ISO date string for when this bill is due' },
+          recurrenceInterval: { type: 'string', enum: ['WEEKLY', 'MONTHLY', 'YEARLY'], description: 'How often it recurs, omit for a one-time bill' },
         },
+        required: ['name', 'amount', 'dueDate'],
       },
-      {
-        name: 'add_bill',
-        description: "Add a new bill — a future obligation the user needs to pay on a specific date",
-        parameters: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'A short name for this bill, e.g. "Rent" or "Phone bill"' },
-            amount: { type: 'number', description: 'The amount owed, in AUD' },
-            dueDate: { type: 'string', description: 'ISO date string for when this bill is due' },
-            recurrenceInterval: { type: 'string', enum: ['WEEKLY', 'MONTHLY', 'YEARLY'], description: 'How often it recurs, omit for a one-time bill' },
-          },
-          required: ['name', 'amount', 'dueDate'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'mark_bill_paid',
+      description: "Mark a bill as paid, recording it as a real expense",
+      parameters: {
+        type: 'object',
+        properties: { billName: { type: 'string', description: 'The name of the bill that was paid' } },
+        required: ['billName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'log_expense',
+      description:
+        "Log a purchase the user just made as a real expense. Infer a short description and a category name " +
+        "(e.g. Food, Transport, Housing, Entertainment, Utilities) from what they said; if no category is obvious, omit it.",
+      parameters: {
+        type: 'object',
+        properties: {
+          amount: { type: 'number', description: 'The amount spent, in AUD' },
+          description: { type: 'string', description: 'A short description of the purchase, e.g. "Groceries"' },
+          categoryName: { type: 'string', description: 'The best-matching category name, if one is evident' },
         },
+        required: ['amount', 'description'],
       },
-      {
-        name: 'mark_bill_paid',
-        description: "Mark a bill as paid, recording it as a real expense",
-        parameters: {
-          type: 'object',
-          properties: { billName: { type: 'string', description: 'The name of the bill that was paid' } },
-          required: ['billName'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_savings_goal',
+      description: "Create a new savings goal the user wants to work toward — a named target amount, optionally with a target date",
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'A short name for this goal, e.g. "Laptop fund" or "Holiday"' },
+          targetAmount: { type: 'number', description: 'The total amount the user wants to save, in AUD' },
+          targetDate: { type: 'string', description: 'ISO date string for when they want to reach it, if mentioned' },
         },
+        required: ['name', 'targetAmount'],
       },
-      {
-        name: 'log_expense',
-        description:
-          "Log a purchase the user just made as a real expense. Infer a short description and a category name " +
-          "(e.g. Food, Transport, Housing, Entertainment, Utilities) from what they said; if no category is obvious, omit it.",
-        parameters: {
-          type: 'object',
-          properties: {
-            amount: { type: 'number', description: 'The amount spent, in AUD' },
-            description: { type: 'string', description: 'A short description of the purchase, e.g. "Groceries"' },
-            categoryName: { type: 'string', description: 'The best-matching category name, if one is evident' },
-          },
-          required: ['amount', 'description'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'log_savings_contribution',
+      description: "Log money the user just put toward an existing savings goal",
+      parameters: {
+        type: 'object',
+        properties: {
+          goalName: { type: 'string', description: 'The name of the savings goal this money went toward' },
+          amount: { type: 'number', description: 'The amount contributed, in AUD' },
         },
+        required: ['goalName', 'amount'],
       },
-      {
-        name: 'add_savings_goal',
-        description: "Create a new savings goal the user wants to work toward — a named target amount, optionally with a target date",
-        parameters: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'A short name for this goal, e.g. "Laptop fund" or "Holiday"' },
-            targetAmount: { type: 'number', description: 'The total amount the user wants to save, in AUD' },
-            targetDate: { type: 'string', description: 'ISO date string for when they want to reach it, if mentioned' },
-          },
-          required: ['name', 'targetAmount'],
-        },
-      },
-      {
-        name: 'log_savings_contribution',
-        description: "Log money the user just put toward an existing savings goal",
-        parameters: {
-          type: 'object',
-          properties: {
-            goalName: { type: 'string', description: 'The name of the savings goal this money went toward' },
-            amount: { type: 'number', description: 'The amount contributed, in AUD' },
-          },
-          required: ['goalName', 'amount'],
-        },
-      },
-    ],
+    },
   },
 ];
 
 export interface ChatHistoryMessage {
-  role: 'user' | 'model';
+  role: 'user' | 'assistant';
   content: string;
 }
 
@@ -152,41 +176,47 @@ export interface ChatToolHandlers {
 
 const FALLBACK_REPLY = "Sorry, I couldn't catch that — try again in a moment.";
 
-async function callGemini(contents: unknown[]): Promise<{ modelContent: unknown; text: string | undefined }> {
-  const apiKey = process.env.GEMINI_API_KEY;
+interface GroqToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
+interface GroqMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content?: string | null;
+  tool_calls?: GroqToolCall[];
+  tool_call_id?: string;
+}
+
+async function callGroq(messages: GroqMessage[]): Promise<{ message: GroqMessage }> {
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not set');
+    throw new Error('GROQ_API_KEY is not set');
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const response = await fetch(GEMINI_URL, {
+    const response = await fetch(GROQ_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents,
-        tools: TOOLS,
-        systemInstruction: {
-          parts: [
-            {
-              text: `Today's date is ${startOfSydneyDay(new Date()).toISOString().slice(0, 10)} (Australia/Sydney). When the user gives a date with no year (e.g. "by December", "next month", "the 5th"), resolve it to the next real occurrence of that date on or after today — never a date in the past, and never a year from your training data. You are a friendly personal-finance coach speaking directly to the user (use "you"). They are new to budgeting and have no prior financial-management experience. All amounts are in Australian dollars (AUD). Keep routine confirmations (e.g. logging an expense or income) short — one or two sentences. When a message naturally touches a money concept worth understanding (e.g. why a category is close to its limit, what a safe-to-spend balance means), briefly explain it in plain language so they build real financial awareness over time. Do not use markdown formatting.`,
-            },
-          ],
-        },
-      }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: MODEL, messages, tools: TOOLS }),
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API returned ${response.status}`);
+      throw new Error(`Groq API returned ${response.status}`);
     }
 
     const data = await response.json();
-    const modelContent = data?.candidates?.[0]?.content;
-    const textPart = modelContent?.parts?.find((p: { text?: string }) => typeof p.text === 'string');
-    return { modelContent, text: textPart?.text };
+    const message = data?.choices?.[0]?.message;
+    if (!message) {
+      throw new Error('Groq API returned an unexpected response shape');
+    }
+
+    return { message };
   } finally {
     clearTimeout(timeout);
   }
@@ -198,22 +228,32 @@ export async function generateChatReply(
   handlers: ChatToolHandlers
 ): Promise<string> {
   try {
-    const contents = [
-      ...history.map((m) => ({ role: m.role, parts: [{ text: m.content }] })),
-      { role: 'user', parts: [{ text: message }] },
+    const systemMessage: GroqMessage = {
+      role: 'system',
+      content: `Today's date is ${startOfSydneyDay(new Date()).toISOString().slice(0, 10)} (Australia/Sydney). When the user gives a date with no year (e.g. "by December", "next month", "the 5th"), resolve it to the next real occurrence of that date on or after today — never a date in the past, and never a year from your training data. You are a friendly personal-finance coach speaking directly to the user (use "you"). They are new to budgeting and have no prior financial-management experience. All amounts are in Australian dollars (AUD). Keep routine confirmations (e.g. logging an expense or income) short — one or two sentences. When a message naturally touches a money concept worth understanding (e.g. why a category is close to its limit, what a safe-to-spend balance means), briefly explain it in plain language so they build real financial awareness over time. Do not use markdown formatting.`,
+    };
+
+    const messages: GroqMessage[] = [
+      systemMessage,
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: message },
     ];
 
-    const first = await callGemini(contents);
+    const first = await callGroq(messages);
 
-    const functionCallPart = (
-      first.modelContent as { parts?: { functionCall?: { name: string; args: Record<string, unknown> } }[] }
-    )?.parts?.find((p) => p.functionCall);
-
-    if (!functionCallPart?.functionCall) {
-      return first.text ?? FALLBACK_REPLY;
+    const toolCall = first.message.tool_calls?.[0];
+    if (!toolCall) {
+      return first.message.content ?? FALLBACK_REPLY;
     }
 
-    const { name, args } = functionCallPart.functionCall;
+    let args: Record<string, unknown>;
+    try {
+      args = JSON.parse(toolCall.function.arguments);
+    } catch {
+      args = {};
+    }
+    const name = toolCall.function.name;
+
     let toolResult: { success: boolean; error?: string; [key: string]: unknown };
     try {
       if (name === 'update_cycle_amount') {
@@ -305,24 +345,20 @@ export async function generateChatReply(
         toolResult = { success: false, error: `Unknown tool: ${name}` };
       }
     } catch (toolError) {
-      // The tool ran and failed (e.g. a DB error) — distinct from never reaching Gemini at all.
+      // The tool ran and failed (e.g. a DB error) — distinct from never reaching Groq at all.
       // Converting this into a normal {success:false} result lets it flow through the existing
-      // Gemini-relay path, where the model can explain the failure conversationally.
+      // Groq-relay path, where the model can explain the failure conversationally.
       console.error(`Tool handler for "${name}" threw`, toolError);
       toolResult = { success: false, error: 'That action failed — try again.' };
     }
 
-    // NOTE: live-verified against the real Gemini API (gemini-3.6-flash) — the documented
-    // `role: 'function'` for relaying a functionResponse is rejected with HTTP 400
-    // ("Role 'function' is not supported. Please use a valid role: ... USER ... MODEL, USER.").
-    // `role: 'user'` is what the real API accepts and responds to correctly.
-    const second = await callGemini([
-      ...contents,
-      first.modelContent,
-      { role: 'user', parts: [{ functionResponse: { name, response: toolResult } }] },
+    const second = await callGroq([
+      ...messages,
+      { role: 'assistant', content: first.message.content ?? null, tool_calls: first.message.tool_calls },
+      { role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(toolResult) },
     ]);
 
-    return second.text ?? FALLBACK_REPLY;
+    return second.message.content ?? FALLBACK_REPLY;
   } catch (error) {
     console.error('generateChatReply failed', error);
     return FALLBACK_REPLY;

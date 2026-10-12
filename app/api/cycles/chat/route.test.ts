@@ -84,7 +84,7 @@ describe('POST /api/cycles/chat', () => {
     // And the history handed to generateChatReply must not contain the current turn a second time.
     const historyArg = vi.mocked(generateChatReply).mock.calls[0][1];
     expect(historyArg).not.toContainEqual({ role: 'user', content: 'change it to 700' });
-    expect(historyArg).toEqual([{ role: 'model', content: 'Hi there' }]);
+    expect(historyArg).toEqual([{ role: 'assistant', content: 'Hi there' }]);
   });
 
   it('binds the addIncomeSource handler to user.userId and converts startDate to a Date', async () => {

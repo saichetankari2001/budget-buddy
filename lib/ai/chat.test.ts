@@ -4,7 +4,7 @@ import { generateChatReply } from './chat';
 describe('generateChatReply', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
-    vi.stubEnv('GEMINI_API_KEY', 'test-key');
+    vi.stubEnv('GROQ_API_KEY', 'test-key');
   });
 
   afterEach(() => {
@@ -12,10 +12,10 @@ describe('generateChatReply', () => {
     vi.unstubAllEnvs();
   });
 
-  it('replies directly when Gemini responds with plain text (no tool call)', async () => {
+  it('replies directly when Groq responds with plain text (no tool call)', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { role: 'model', parts: [{ text: 'Sure, happy to help!' }] } }] }),
+      json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Sure, happy to help!' } }] }),
     } as Response);
 
     const handlers = {
@@ -41,7 +41,7 @@ describe('generateChatReply', () => {
 
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { role: 'model', parts: [{ text: 'Got it.' }] } }] }),
+      json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Got it.' } }] }),
     } as Response);
 
     const handlers = {
@@ -59,23 +59,25 @@ describe('generateChatReply', () => {
 
     const [, requestInit] = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse(requestInit!.body as string);
-    const systemText = body.systemInstruction.parts[0].text as string;
+    const systemText = body.messages[0].content as string;
 
+    expect(body.messages[0].role).toBe('system');
     expect(systemText).toContain('2026-10-12');
 
     vi.useRealTimers();
   });
 
-  it('calls update_cycle_amount when Gemini requests it, then uses the follow-up reply', async () => {
+  it('calls update_cycle_amount when Groq requests it, then uses the follow-up reply', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [{ functionCall: { name: 'update_cycle_amount', args: { newAmount: 700 } } }],
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'update_cycle_amount', arguments: '{"newAmount":700}' } }],
               },
             },
           ],
@@ -83,9 +85,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: 'Done — updated to $700.' }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Done — updated to $700.' } }] }),
       } as Response);
 
     const handlers = {
@@ -106,19 +106,25 @@ describe('generateChatReply', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it('calls cancel_cycle when Gemini requests it', async () => {
+  it('calls cancel_cycle when Groq requests it', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'cancel_cycle', args: {} } }] } }],
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'cancel_cycle', arguments: '{}' } }],
+              },
+            },
+          ],
         }),
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: 'Your cycle has been cancelled.' }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Your cycle has been cancelled.' } }] }),
       } as Response);
 
     const handlers = {
@@ -138,19 +144,25 @@ describe('generateChatReply', () => {
     expect(handlers.cancelCycle).toHaveBeenCalled();
   });
 
-  it('relays a tool failure back to Gemini rather than inventing error text itself', async () => {
+  it('relays a tool failure back to Groq rather than inventing error text itself', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'cancel_cycle', args: {} } }] } }],
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'cancel_cycle', arguments: '{}' } }],
+              },
+            },
+          ],
         }),
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: "You don't have an active cycle to cancel." }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: "You don't have an active cycle to cancel." } }] }),
       } as Response);
 
     const handlers = {
@@ -167,20 +179,15 @@ describe('generateChatReply', () => {
     await generateChatReply('cancel my cycle', [], handlers);
 
     const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
-    // NOTE: live-verified against the real Gemini API (gemini-3.6-flash) — a `role: 'function'`
-    // content entry is rejected outright with HTTP 400 ("Role 'function' is not supported").
-    // The implementation sends the functionResponse back under role 'user' instead, so this
-    // assertion locates the entry by its functionResponse part rather than by role name.
-    const functionResponsePart = secondCallBody.contents.find((c: { parts?: { functionResponse?: unknown }[] }) =>
-      c.parts?.some((p) => p.functionResponse)
-    );
-    expect(functionResponsePart.parts[0].functionResponse.response).toEqual({
+    const toolMessage = secondCallBody.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(JSON.parse(toolMessage.content)).toEqual({
       success: false,
       error: 'No active cycle found',
     });
+    expect(toolMessage.tool_call_id).toBe('call_1');
   });
 
-  it('returns a generic fallback message when the Gemini call fails', async () => {
+  it('returns a generic fallback message when the Groq call fails', async () => {
     vi.mocked(fetch).mockRejectedValue(new Error('network error'));
 
     const handlers = {
@@ -220,10 +227,10 @@ describe('generateChatReply', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('sends a systemInstruction with AUD/persona framing on every Gemini call', async () => {
+  it('sends a system message with AUD/persona framing on every Groq call', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ candidates: [{ content: { role: 'model', parts: [{ text: 'Sure, happy to help!' }] } }] }),
+      json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Sure, happy to help!' } }] }),
     } as Response);
 
     const handlers = {
@@ -240,21 +247,22 @@ describe('generateChatReply', () => {
     await generateChatReply('hey there', [], handlers);
 
     const requestBody = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
-    expect(requestBody.systemInstruction.parts[0].text).toContain('AUD');
-    expect(requestBody.systemInstruction.parts[0].text).toContain('Australian dollars');
+    expect(requestBody.messages[0].content).toContain('AUD');
+    expect(requestBody.messages[0].content).toContain('Australian dollars');
   });
 
-  it('relays a thrown error from a tool handler to Gemini as a {success:false} result, and logs it, instead of letting the exception propagate', async () => {
+  it('relays a thrown error from a tool handler to Groq as a {success:false} result, and logs it, instead of letting the exception propagate', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [{ functionCall: { name: 'update_cycle_amount', args: { newAmount: 700 } } }],
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'update_cycle_amount', arguments: '{"newAmount":700}' } }],
               },
             },
           ],
@@ -262,9 +270,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: 'That action failed — try again.' }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'That action failed — try again.' } }] }),
       } as Response);
 
     const handlers = {
@@ -281,15 +287,13 @@ describe('generateChatReply', () => {
 
     const result = await generateChatReply('change it to 700', [], handlers);
 
-    // The exception never propagates out of generateChatReply — it resolves to Gemini's
+    // The exception never propagates out of generateChatReply — it resolves to Groq's
     // second-turn reply, exactly like any other tool failure.
     expect(result).toBe('That action failed — try again.');
 
     const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
-    const functionResponsePart = secondCallBody.contents.find((c: { parts?: { functionResponse?: unknown }[] }) =>
-      c.parts?.some((p) => p.functionResponse)
-    );
-    expect(functionResponsePart.parts[0].functionResponse.response).toEqual({
+    const toolMessage = secondCallBody.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(JSON.parse(toolMessage.content)).toEqual({
       success: false,
       error: 'That action failed — try again.',
     });
@@ -297,20 +301,23 @@ describe('generateChatReply', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('calls addIncomeSource when Gemini requests add_income_source, then uses the follow-up reply', async () => {
+  it('calls addIncomeSource when Groq requests add_income_source, then uses the follow-up reply', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
                   {
-                    functionCall: {
+                    id: 'call_1',
+                    type: 'function',
+                    function: {
                       name: 'add_income_source',
-                      args: { name: 'Casual job', type: 'FIXED', amount: 30, recurrenceInterval: 'WEEKLY', startDate: '2026-09-29T00:00:00.000Z' },
+                      arguments: JSON.stringify({ name: 'Casual job', type: 'FIXED', amount: 30, recurrenceInterval: 'WEEKLY', startDate: '2026-09-29T00:00:00.000Z' }),
                     },
                   },
                 ],
@@ -321,9 +328,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: "Added your casual job — $30/week starting Sep 29." }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Added your casual job — $30/week starting Sep 29.' } }] }),
       } as Response);
 
     const handlers = {
@@ -349,16 +354,17 @@ describe('generateChatReply', () => {
     });
   });
 
-  it('calls logIncome when Gemini requests log_income, then uses the follow-up reply', async () => {
+  it('calls logIncome when Groq requests log_income, then uses the follow-up reply', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [{ functionCall: { name: 'log_income', args: { sourceName: 'Uber', amount: 85 } } }],
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'log_income', arguments: JSON.stringify({ sourceName: 'Uber', amount: 85 }) } }],
               },
             },
           ],
@@ -366,9 +372,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: 'Logged $85 from Uber.' }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Logged $85 from Uber.' } }] }),
       } as Response);
 
     const handlers = {
@@ -388,16 +392,17 @@ describe('generateChatReply', () => {
     expect(handlers.logIncome).toHaveBeenCalledWith({ sourceName: 'Uber', amount: 85 });
   });
 
-  it('calls addBill when Gemini requests add_bill, then uses the follow-up reply', async () => {
+  it('calls addBill when Groq requests add_bill, then uses the follow-up reply', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [{ functionCall: { name: 'add_bill', args: { name: 'Phone', amount: 30, dueDate: '2026-10-02T00:00:00.000Z' } } }],
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'add_bill', arguments: JSON.stringify({ name: 'Phone', amount: 30, dueDate: '2026-10-02T00:00:00.000Z' }) } }],
               },
             },
           ],
@@ -405,9 +410,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: "Added your $30 phone bill, due Oct 2." }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Added your $30 phone bill, due Oct 2.' } }] }),
       } as Response);
 
     const handlers = {
@@ -427,16 +430,17 @@ describe('generateChatReply', () => {
     expect(handlers.addBill).toHaveBeenCalledWith({ name: 'Phone', amount: 30, dueDate: '2026-10-02T00:00:00.000Z' });
   });
 
-  it('calls markBillPaid when Gemini requests mark_bill_paid, then uses the follow-up reply', async () => {
+  it('calls markBillPaid when Groq requests mark_bill_paid, then uses the follow-up reply', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [{ functionCall: { name: 'mark_bill_paid', args: { billName: 'Phone' } } }],
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'mark_bill_paid', arguments: JSON.stringify({ billName: 'Phone' }) } }],
               },
             },
           ],
@@ -444,9 +448,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: 'Marked your phone bill as paid.' }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Marked your phone bill as paid.' } }] }),
       } as Response);
 
     const handlers = {
@@ -466,21 +468,21 @@ describe('generateChatReply', () => {
     expect(handlers.markBillPaid).toHaveBeenCalledWith('Phone');
   });
 
-  it('calls logExpense when Gemini requests log_expense, then uses the follow-up reply', async () => {
+  it('calls logExpense when Groq requests log_expense, then uses the follow-up reply', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
                   {
-                    functionCall: {
-                      name: 'log_expense',
-                      args: { amount: 20, description: 'Groceries', categoryName: 'Food' },
-                    },
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'log_expense', arguments: JSON.stringify({ amount: 20, description: 'Groceries', categoryName: 'Food' }) },
                   },
                 ],
               },
@@ -490,9 +492,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: 'Logged $20 for Groceries under Food.' }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Logged $20 for Groceries under Food.' } }] }),
       } as Response);
 
     const handlers = {
@@ -512,16 +512,17 @@ describe('generateChatReply', () => {
     expect(handlers.logExpense).toHaveBeenCalledWith({ amount: 20, description: 'Groceries', categoryName: 'Food' });
   });
 
-  it('calls logExpense with categoryName omitted when Gemini has no clear category to infer', async () => {
+  it('calls logExpense with categoryName omitted when Groq has no clear category to infer', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [{ functionCall: { name: 'log_expense', args: { amount: 15, description: 'Random stuff' } } }],
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'log_expense', arguments: JSON.stringify({ amount: 15, description: 'Random stuff' }) } }],
               },
             },
           ],
@@ -529,9 +530,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: 'Logged $15 for Random stuff.' }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Logged $15 for Random stuff.' } }] }),
       } as Response);
 
     const handlers = {
@@ -551,17 +550,18 @@ describe('generateChatReply', () => {
     expect(handlers.logExpense).toHaveBeenCalledWith({ amount: 15, description: 'Random stuff', categoryName: undefined });
   });
 
-  it('relays a thrown error from the addBill handler to Gemini as a {success:false} result, and logs it, instead of letting the exception propagate', async () => {
+  it('relays a thrown error from the addBill handler to Groq as a {success:false} result, and logs it, instead of letting the exception propagate', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [{ functionCall: { name: 'add_bill', args: { name: 'Phone', amount: 30, dueDate: '2026-10-02T00:00:00.000Z' } } }],
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'add_bill', arguments: JSON.stringify({ name: 'Phone', amount: 30, dueDate: '2026-10-02T00:00:00.000Z' }) } }],
               },
             },
           ],
@@ -569,9 +569,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: 'That action failed — try again.' }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'That action failed — try again.' } }] }),
       } as Response);
 
     const handlers = {
@@ -591,10 +589,8 @@ describe('generateChatReply', () => {
     expect(result).toBe('That action failed — try again.');
 
     const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
-    const functionResponsePart = secondCallBody.contents.find((c: { parts?: { functionResponse?: unknown }[] }) =>
-      c.parts?.some((p) => p.functionResponse)
-    );
-    expect(functionResponsePart.parts[0].functionResponse.response).toEqual({
+    const toolMessage = secondCallBody.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(JSON.parse(toolMessage.content)).toEqual({
       success: false,
       error: 'That action failed — try again.',
     });
@@ -602,16 +598,17 @@ describe('generateChatReply', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('treats a non-numeric args.newAmount as a validation failure relayed to Gemini, without calling the handler', async () => {
+  it('treats a non-numeric args.newAmount as a validation failure relayed to Groq, without calling the handler', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                role: 'model',
-                parts: [{ functionCall: { name: 'update_cycle_amount', args: { newAmount: 'seven hundred' } } }],
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'update_cycle_amount', arguments: JSON.stringify({ newAmount: 'seven hundred' }) } }],
               },
             },
           ],
@@ -619,9 +616,7 @@ describe('generateChatReply', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          candidates: [{ content: { role: 'model', parts: [{ text: "I couldn't tell what amount you meant." }] } }],
-        }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: "I couldn't tell what amount you meant." } }] }),
       } as Response);
 
     const handlers = {
@@ -641,30 +636,38 @@ describe('generateChatReply', () => {
     expect(handlers.updateCycleAmount).not.toHaveBeenCalled();
 
     const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
-    const functionResponsePart = secondCallBody.contents.find((c: { parts?: { functionResponse?: unknown }[] }) =>
-      c.parts?.some((p) => p.functionResponse)
-    );
-    expect(functionResponsePart.parts[0].functionResponse.response).toEqual({
+    const toolMessage = secondCallBody.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(JSON.parse(toolMessage.content)).toEqual({
       success: false,
       error: 'newAmount must be a number',
     });
   });
 
-  it('calls addSavingsGoal when Gemini requests add_savings_goal, then uses the follow-up reply', async () => {
+  it('calls addSavingsGoal when Groq requests add_savings_goal, then uses the follow-up reply', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [{
-            content: {
-              parts: [{ functionCall: { name: 'add_savings_goal', args: { name: 'Laptop fund', targetAmount: 1500, targetDate: '2026-12-25T00:00:00.000Z' } } }],
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'add_savings_goal', arguments: JSON.stringify({ name: 'Laptop fund', targetAmount: 1500, targetDate: '2026-12-25T00:00:00.000Z' }) },
+                  },
+                ],
+              },
             },
-          }],
+          ],
         }),
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ candidates: [{ content: { parts: [{ text: "Got it — I've set up your Laptop fund goal." } ] } }] }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: "Got it — I've set up your Laptop fund goal." } }] }),
       } as Response);
 
     const handlers = {
@@ -680,17 +683,25 @@ describe('generateChatReply', () => {
     expect(result).toBe("Got it — I've set up your Laptop fund goal.");
   });
 
-  it('calls logSavingsContribution when Gemini requests log_savings_contribution', async () => {
+  it('calls logSavingsContribution when Groq requests log_savings_contribution', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [{ content: { parts: [{ functionCall: { name: 'log_savings_contribution', args: { goalName: 'Laptop fund', amount: 50 } } }] } }],
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'log_savings_contribution', arguments: JSON.stringify({ goalName: 'Laptop fund', amount: 50 }) } }],
+              },
+            },
+          ],
         }),
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ candidates: [{ content: { parts: [{ text: 'Nice, $50 closer to your laptop fund.' }] } }] }),
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Nice, $50 closer to your laptop fund.' } }] }),
       } as Response);
 
     const handlers = {
