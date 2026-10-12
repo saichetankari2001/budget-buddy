@@ -35,6 +35,37 @@ describe('generateChatReply', () => {
     expect(handlers.updateCycleAmount).not.toHaveBeenCalled();
   });
 
+  it("anchors today's real date in the system prompt, so a bare relative date (e.g. 'by December') resolves against the actual current year, not the model's training-era guess", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-12T00:00:00.000Z'));
+
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { role: 'model', parts: [{ text: 'Got it.' }] } }] }),
+    } as Response);
+
+    const handlers = {
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
+    };
+    await generateChatReply('I want to save $500 for a laptop by December', [], handlers);
+
+    const [, requestInit] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(requestInit!.body as string);
+    const systemText = body.systemInstruction.parts[0].text as string;
+
+    expect(systemText).toContain('2026-10-12');
+
+    vi.useRealTimers();
+  });
+
   it('calls update_cycle_amount when Gemini requests it, then uses the follow-up reply', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({

@@ -1,3 +1,5 @@
+import { startOfSydneyDay } from '@/lib/utils/moneyCycle';
+
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
 const TIMEOUT_MS = 9000;
 
@@ -169,7 +171,7 @@ async function callGemini(contents: unknown[]): Promise<{ modelContent: unknown;
         systemInstruction: {
           parts: [
             {
-              text: 'You are a friendly personal-finance coach speaking directly to the user (use "you"). They are new to budgeting and have no prior financial-management experience. All amounts are in Australian dollars (AUD). Keep routine confirmations (e.g. logging an expense or income) short — one or two sentences. When a message naturally touches a money concept worth understanding (e.g. why a category is close to its limit, what a safe-to-spend balance means), briefly explain it in plain language so they build real financial awareness over time. Do not use markdown formatting.',
+              text: `Today's date is ${startOfSydneyDay(new Date()).toISOString().slice(0, 10)} (Australia/Sydney). When the user gives a date with no year (e.g. "by December", "next month", "the 5th"), resolve it to the next real occurrence of that date on or after today — never a date in the past, and never a year from your training data. You are a friendly personal-finance coach speaking directly to the user (use "you"). They are new to budgeting and have no prior financial-management experience. All amounts are in Australian dollars (AUD). Keep routine confirmations (e.g. logging an expense or income) short — one or two sentences. When a message naturally touches a money concept worth understanding (e.g. why a category is close to its limit, what a safe-to-spend balance means), briefly explain it in plain language so they build real financial awareness over time. Do not use markdown formatting.`,
             },
           ],
         },
