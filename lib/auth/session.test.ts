@@ -31,4 +31,61 @@ describe('getCurrentUser', () => {
 
     expect(await getCurrentUser()).toBeNull();
   });
+
+  it('falls back to the Authorization Bearer header when there is no cookie and a request is passed', async () => {
+    vi.mocked(cookies).mockReturnValue({
+      get: () => undefined,
+    } as never);
+    const token = await signToken({ userId: 'user_2', email: 'b@example.com' });
+    const request = new Request('http://localhost/api/expenses', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const user = await getCurrentUser(request);
+    expect(user).toEqual({ userId: 'user_2', email: 'b@example.com' });
+  });
+
+  it('prefers the cookie over the Bearer header when both are present', async () => {
+    const cookieToken = await signToken({ userId: 'cookie_user', email: 'cookie@example.com' });
+    const headerToken = await signToken({ userId: 'header_user', email: 'header@example.com' });
+    vi.mocked(cookies).mockReturnValue({
+      get: () => ({ value: cookieToken }),
+    } as never);
+    const request = new Request('http://localhost/api/expenses', {
+      headers: { Authorization: `Bearer ${headerToken}` },
+    });
+
+    const user = await getCurrentUser(request);
+    expect(user).toEqual({ userId: 'cookie_user', email: 'cookie@example.com' });
+  });
+
+  it('returns null when there is no cookie and no request is passed at all (every existing call site)', async () => {
+    vi.mocked(cookies).mockReturnValue({
+      get: () => undefined,
+    } as never);
+
+    expect(await getCurrentUser()).toBeNull();
+  });
+
+  it('returns null for a malformed Authorization header (no Bearer prefix)', async () => {
+    vi.mocked(cookies).mockReturnValue({
+      get: () => undefined,
+    } as never);
+    const request = new Request('http://localhost/api/expenses', {
+      headers: { Authorization: 'not-a-bearer-token' },
+    });
+
+    expect(await getCurrentUser(request)).toBeNull();
+  });
+
+  it('returns null for a well-formed but invalid/expired Bearer token', async () => {
+    vi.mocked(cookies).mockReturnValue({
+      get: () => undefined,
+    } as never);
+    const request = new Request('http://localhost/api/expenses', {
+      headers: { Authorization: 'Bearer this-is-not-a-real-jwt' },
+    });
+
+    expect(await getCurrentUser(request)).toBeNull();
+  });
 });

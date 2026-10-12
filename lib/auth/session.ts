@@ -1,10 +1,17 @@
 import { cookies } from 'next/headers';
 import { verifyToken, TokenPayload } from './jwt';
 
-export async function getCurrentUser(): Promise<TokenPayload | null> {
-  const token = cookies().get('token')?.value;
-  if (!token) {
+export async function getCurrentUser(request?: Request): Promise<TokenPayload | null> {
+  const cookieToken = cookies().get('token')?.value;
+  if (cookieToken) {
+    return verifyToken(cookieToken);
+  }
+
+  const authHeader = request?.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
     return null;
   }
-  return verifyToken(token);
+
+  const headerToken = authHeader.slice('Bearer '.length);
+  return verifyToken(headerToken);
 }
