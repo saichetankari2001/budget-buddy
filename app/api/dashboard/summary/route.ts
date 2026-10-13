@@ -5,12 +5,19 @@ import { AppError } from '@/lib/errors/AppError';
 import { handleRouteError } from '@/lib/errors/handleRouteError';
 import { computeHealthScore } from '@/lib/health/computeHealthScore';
 import { getCurrentMonthRange } from '@/lib/utils/dateRange';
+import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses';
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
       throw new AppError(401, 'Not authenticated');
+    }
+
+    try {
+      await generateDueRecurringExpenses(user.userId);
+    } catch (error) {
+      console.error('Failed to generate recurring expenses:', error);
     }
 
     const now = new Date();

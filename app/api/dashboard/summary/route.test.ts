@@ -6,9 +6,11 @@ import { prismaMock } from '@/tests/mocks/prisma';
 
 vi.mock('@/lib/auth/session', () => ({ getCurrentUser: vi.fn() }));
 vi.mock('@/lib/health/computeHealthScore', () => ({ computeHealthScore: vi.fn() }));
+vi.mock('@/lib/generateDueRecurringExpenses', () => ({ generateDueRecurringExpenses: vi.fn() }));
 
 import { getCurrentUser } from '@/lib/auth/session';
 import { computeHealthScore } from '@/lib/health/computeHealthScore';
+import { generateDueRecurringExpenses } from '@/lib/generateDueRecurringExpenses';
 import { GET } from './route';
 
 const mockUser = { userId: 'user_1', email: 'a@example.com' };
@@ -43,6 +45,16 @@ describe('GET /api/dashboard/summary', () => {
     await GET(makeRequest());
 
     expect(getCurrentUser).toHaveBeenCalledWith(expect.anything());
+  });
+
+  it('generates due recurring expenses for the authenticated user before querying expenses, mobile-only users never fall behind web', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.expense.findMany.mockResolvedValue([]);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(null);
+
+    await GET(makeRequest());
+
+    expect(generateDueRecurringExpenses).toHaveBeenCalledWith(mockUser.userId);
   });
 
   it('sums this calendar month\'s expenses for totalSpentThisMonth', async () => {
