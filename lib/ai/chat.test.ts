@@ -212,6 +212,84 @@ describe('generateChatReply', () => {
     expect(result).toBe("Sorry, I couldn't catch that — try again in a moment.");
   });
 
+  it('returns a distinct rate-limit message (not the generic fallback) when Groq returns 429', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 429 } as Response);
+
+    const handlers = {
+      startCycle: vi.fn(),
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
+    };
+    const result = await generateChatReply('a detailed message', [], handlers);
+
+    expect(result).toBe("I'm getting a lot of requests right now — give me a few seconds and try again.");
+  });
+
+  it('still returns the generic fallback (not the rate-limit message) for a non-429 failure', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500 } as Response);
+
+    const handlers = {
+      startCycle: vi.fn(),
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
+    };
+    const result = await generateChatReply('a detailed message', [], handlers);
+
+    expect(result).toBe("Sorry, I couldn't catch that — try again in a moment.");
+  });
+
+  it('returns the rate-limit message when the SECOND Groq call (relaying a tool result) hits 429, even though the first call and the tool itself succeeded', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'start_cycle', arguments: JSON.stringify({ startingAmount: 1400, endDate: '2026-10-31' }) } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 429 } as Response);
+
+    const handlers = {
+      startCycle: vi.fn().mockResolvedValue({ success: true, id: 'cycle_1' }),
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
+    };
+    const result = await generateChatReply('I have $1400, budgeting until the 31st', [], handlers);
+
+    // The real-world bug this pins: the tool already ran (and succeeded) by the time the second
+    // call's 429 is hit — the user's action is NOT lost, only the natural-language reply is.
+    expect(handlers.startCycle).toHaveBeenCalled();
+    expect(result).toBe("I'm getting a lot of requests right now — give me a few seconds and try again.");
+  });
+
   it('logs the failure when the outer catch produces the fallback reply', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(fetch).mockRejectedValue(new Error('network error'));

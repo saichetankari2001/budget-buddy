@@ -195,6 +195,19 @@ export interface ChatToolHandlers {
 }
 
 const FALLBACK_REPLY = "Sorry, I couldn't catch that — try again in a moment.";
+const RATE_LIMIT_FALLBACK_REPLY = "I'm getting a lot of requests right now — give me a few seconds and try again.";
+
+// A 429 is a known, transient condition (Groq's per-minute token budget), not a real failure — it
+// deserves a distinct message telling the user to wait and retry, not the generic catch-all. This
+// matters most for exactly the case that motivated it: the FIRST call's tool action can have
+// already succeeded (e.g. a cycle really did get created) before the SECOND call hits this limit,
+// so "try again" is accurate, while the generic "I couldn't catch that" reads as if nothing happened.
+class GroqRateLimitError extends Error {
+  constructor() {
+    super('Groq API returned 429');
+    this.name = 'GroqRateLimitError';
+  }
+}
 
 interface GroqToolCall {
   id: string;
@@ -227,6 +240,9 @@ async function callGroq(messages: GroqMessage[]): Promise<{ message: GroqMessage
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        throw new GroqRateLimitError();
+      }
       throw new Error(`Groq API returned ${response.status}`);
     }
 
@@ -392,6 +408,9 @@ export async function generateChatReply(
     return second.message.content ?? FALLBACK_REPLY;
   } catch (error) {
     console.error('generateChatReply failed', error);
+    if (error instanceof GroqRateLimitError) {
+      return RATE_LIMIT_FALLBACK_REPLY;
+    }
     return FALLBACK_REPLY;
   }
 }
