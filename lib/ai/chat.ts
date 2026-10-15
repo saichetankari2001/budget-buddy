@@ -8,6 +8,25 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'start_cycle',
+      description:
+        "Start the user's first (or next) money cycle — required before most other budgeting actions make sense, since there's no active cycle yet to attach them to. " +
+        'A cycle needs a starting amount (how much money they have right now, across everything they mentioned) and an end date (when this budgeting period ends). ' +
+        'If they give an explicit end date or describe a pay cycle, use that; otherwise default to 30 days from today. ' +
+        'Call this whenever the user describes their financial situation and has no active cycle yet — do not ask them to use a separate form first.',
+      parameters: {
+        type: 'object',
+        properties: {
+          startingAmount: { type: 'number', description: 'How much money they currently have, in AUD' },
+          endDate: { type: 'string', description: 'ISO date string for when this budgeting cycle ends' },
+        },
+        required: ['startingAmount', 'endDate'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'update_cycle_amount',
       description: "Update the starting amount of the user's active money cycle, in Australian dollars",
       parameters: {
@@ -144,6 +163,7 @@ export interface ChatHistoryMessage {
 }
 
 export interface ChatToolHandlers {
+  startCycle: (input: { startingAmount: number; endDate: string }) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
   updateCycleAmount: (newAmount: number) => Promise<{ success: boolean; error?: string; [key: string]: unknown }>;
   cancelCycle: () => Promise<{ success: boolean; error?: string }>;
   addIncomeSource: (input: {
@@ -222,6 +242,97 @@ async function callGroq(messages: GroqMessage[]): Promise<{ message: GroqMessage
   }
 }
 
+type ToolResult = { success: boolean; error?: string; [key: string]: unknown };
+
+async function dispatchTool(name: string, args: Record<string, unknown>, handlers: ChatToolHandlers): Promise<ToolResult> {
+  if (name === 'start_cycle') {
+    if (typeof args.startingAmount !== 'number') {
+      return { success: false, error: 'startingAmount must be a number' };
+    } else if (typeof args.endDate !== 'string') {
+      return { success: false, error: 'endDate must be a string' };
+    }
+    return handlers.startCycle({ startingAmount: args.startingAmount, endDate: args.endDate });
+  } else if (name === 'update_cycle_amount') {
+    if (typeof args.newAmount !== 'number') {
+      return { success: false, error: 'newAmount must be a number' };
+    }
+    return handlers.updateCycleAmount(args.newAmount);
+  } else if (name === 'cancel_cycle') {
+    return handlers.cancelCycle();
+  } else if (name === 'add_income_source') {
+    if (typeof args.name !== 'string') {
+      return { success: false, error: 'name must be a string' };
+    } else if (args.type !== 'FIXED' && args.type !== 'IRREGULAR') {
+      return { success: false, error: 'type must be FIXED or IRREGULAR' };
+    } else if (typeof args.startDate !== 'string') {
+      return { success: false, error: 'startDate must be a string' };
+    }
+    return handlers.addIncomeSource({
+      name: args.name,
+      type: args.type,
+      amount: typeof args.amount === 'number' ? args.amount : undefined,
+      recurrenceInterval: args.recurrenceInterval as 'WEEKLY' | 'MONTHLY' | 'YEARLY' | undefined,
+      startDate: args.startDate,
+    });
+  } else if (name === 'log_income') {
+    if (typeof args.sourceName !== 'string') {
+      return { success: false, error: 'sourceName must be a string' };
+    } else if (typeof args.amount !== 'number') {
+      return { success: false, error: 'amount must be a number' };
+    }
+    return handlers.logIncome({ sourceName: args.sourceName, amount: args.amount });
+  } else if (name === 'add_bill') {
+    if (typeof args.name !== 'string') {
+      return { success: false, error: 'name must be a string' };
+    } else if (typeof args.amount !== 'number') {
+      return { success: false, error: 'amount must be a number' };
+    } else if (typeof args.dueDate !== 'string') {
+      return { success: false, error: 'dueDate must be a string' };
+    }
+    return handlers.addBill({
+      name: args.name,
+      amount: args.amount,
+      dueDate: args.dueDate,
+      recurrenceInterval: args.recurrenceInterval as 'WEEKLY' | 'MONTHLY' | 'YEARLY' | undefined,
+    });
+  } else if (name === 'mark_bill_paid') {
+    if (typeof args.billName !== 'string') {
+      return { success: false, error: 'billName must be a string' };
+    }
+    return handlers.markBillPaid(args.billName);
+  } else if (name === 'log_expense') {
+    if (typeof args.amount !== 'number') {
+      return { success: false, error: 'amount must be a number' };
+    } else if (typeof args.description !== 'string') {
+      return { success: false, error: 'description must be a string' };
+    }
+    return handlers.logExpense({
+      amount: args.amount,
+      description: args.description,
+      categoryName: typeof args.categoryName === 'string' ? args.categoryName : undefined,
+    });
+  } else if (name === 'add_savings_goal') {
+    if (typeof args.name !== 'string') {
+      return { success: false, error: 'name must be a string' };
+    } else if (typeof args.targetAmount !== 'number') {
+      return { success: false, error: 'targetAmount must be a number' };
+    }
+    return handlers.addSavingsGoal({
+      name: args.name,
+      targetAmount: args.targetAmount,
+      targetDate: typeof args.targetDate === 'string' ? args.targetDate : undefined,
+    });
+  } else if (name === 'log_savings_contribution') {
+    if (typeof args.goalName !== 'string') {
+      return { success: false, error: 'goalName must be a string' };
+    } else if (typeof args.amount !== 'number') {
+      return { success: false, error: 'amount must be a number' };
+    }
+    return handlers.logSavingsContribution({ goalName: args.goalName, amount: args.amount });
+  }
+  return { success: false, error: `Unknown tool: ${name}` };
+}
+
 export async function generateChatReply(
   message: string,
   history: ChatHistoryMessage[],
@@ -230,7 +341,7 @@ export async function generateChatReply(
   try {
     const systemMessage: GroqMessage = {
       role: 'system',
-      content: `Today's date is ${startOfSydneyDay(new Date()).toISOString().slice(0, 10)} (Australia/Sydney). When the user gives a date with no year (e.g. "by December", "next month", "the 5th"), resolve it to the next real occurrence of that date on or after today — never a date in the past, and never a year from your training data. You are a friendly personal-finance coach speaking directly to the user (use "you"). They are new to budgeting and have no prior financial-management experience. All amounts are in Australian dollars (AUD). Keep routine confirmations (e.g. logging an expense or income) short — one or two sentences. When a message naturally touches a money concept worth understanding (e.g. why a category is close to its limit, what a safe-to-spend balance means), briefly explain it in plain language so they build real financial awareness over time. Do not use markdown formatting.`,
+      content: `Today's date is ${startOfSydneyDay(new Date()).toISOString().slice(0, 10)} (Australia/Sydney). When the user gives a date with no year (e.g. "by December", "next month", "the 5th"), resolve it to the next real occurrence of that date on or after today — never a date in the past, and never a year from your training data. You are a friendly personal-finance coach speaking directly to the user (use "you"). They are new to budgeting and have no prior financial-management experience. All amounts are in Australian dollars (AUD). When a message describes several distinct things to act on (e.g. a starting cycle plus a bill plus an income source), call a tool for every one of them in this same turn rather than only the first — you are not limited to one tool call per message. Keep routine confirmations (e.g. logging an expense or income) short — one or two sentences. When a message naturally touches a money concept worth understanding (e.g. why a category is close to its limit, what a safe-to-spend balance means), briefly explain it in plain language so they build real financial awareness over time. Do not use markdown formatting.`,
     };
 
     const messages: GroqMessage[] = [
@@ -241,121 +352,41 @@ export async function generateChatReply(
 
     const first = await callGroq(messages);
 
-    const toolCall = first.message.tool_calls?.[0];
-    if (!toolCall) {
+    const toolCalls = first.message.tool_calls;
+    if (!toolCalls || toolCalls.length === 0) {
       return first.message.content ?? FALLBACK_REPLY;
     }
 
-    let args: Record<string, unknown>;
-    try {
-      args = JSON.parse(toolCall.function.arguments);
-    } catch {
-      args = {};
-    }
-    const name = toolCall.function.name;
-
-    let toolResult: { success: boolean; error?: string; [key: string]: unknown };
-    try {
-      if (name === 'update_cycle_amount') {
-        if (typeof args.newAmount !== 'number') {
-          toolResult = { success: false, error: 'newAmount must be a number' };
-        } else {
-          toolResult = await handlers.updateCycleAmount(args.newAmount);
-        }
-      } else if (name === 'cancel_cycle') {
-        toolResult = await handlers.cancelCycle();
-      } else if (name === 'add_income_source') {
-        if (typeof args.name !== 'string') {
-          toolResult = { success: false, error: 'name must be a string' };
-        } else if (args.type !== 'FIXED' && args.type !== 'IRREGULAR') {
-          toolResult = { success: false, error: 'type must be FIXED or IRREGULAR' };
-        } else if (typeof args.startDate !== 'string') {
-          toolResult = { success: false, error: 'startDate must be a string' };
-        } else {
-          toolResult = await handlers.addIncomeSource({
-            name: args.name,
-            type: args.type,
-            amount: typeof args.amount === 'number' ? args.amount : undefined,
-            recurrenceInterval: args.recurrenceInterval as 'WEEKLY' | 'MONTHLY' | 'YEARLY' | undefined,
-            startDate: args.startDate,
-          });
-        }
-      } else if (name === 'log_income') {
-        if (typeof args.sourceName !== 'string') {
-          toolResult = { success: false, error: 'sourceName must be a string' };
-        } else if (typeof args.amount !== 'number') {
-          toolResult = { success: false, error: 'amount must be a number' };
-        } else {
-          toolResult = await handlers.logIncome({ sourceName: args.sourceName, amount: args.amount });
-        }
-      } else if (name === 'add_bill') {
-        if (typeof args.name !== 'string') {
-          toolResult = { success: false, error: 'name must be a string' };
-        } else if (typeof args.amount !== 'number') {
-          toolResult = { success: false, error: 'amount must be a number' };
-        } else if (typeof args.dueDate !== 'string') {
-          toolResult = { success: false, error: 'dueDate must be a string' };
-        } else {
-          toolResult = await handlers.addBill({
-            name: args.name,
-            amount: args.amount,
-            dueDate: args.dueDate,
-            recurrenceInterval: args.recurrenceInterval as 'WEEKLY' | 'MONTHLY' | 'YEARLY' | undefined,
-          });
-        }
-      } else if (name === 'mark_bill_paid') {
-        if (typeof args.billName !== 'string') {
-          toolResult = { success: false, error: 'billName must be a string' };
-        } else {
-          toolResult = await handlers.markBillPaid(args.billName);
-        }
-      } else if (name === 'log_expense') {
-        if (typeof args.amount !== 'number') {
-          toolResult = { success: false, error: 'amount must be a number' };
-        } else if (typeof args.description !== 'string') {
-          toolResult = { success: false, error: 'description must be a string' };
-        } else {
-          toolResult = await handlers.logExpense({
-            amount: args.amount,
-            description: args.description,
-            categoryName: typeof args.categoryName === 'string' ? args.categoryName : undefined,
-          });
-        }
-      } else if (name === 'add_savings_goal') {
-        if (typeof args.name !== 'string') {
-          toolResult = { success: false, error: 'name must be a string' };
-        } else if (typeof args.targetAmount !== 'number') {
-          toolResult = { success: false, error: 'targetAmount must be a number' };
-        } else {
-          toolResult = await handlers.addSavingsGoal({
-            name: args.name,
-            targetAmount: args.targetAmount,
-            targetDate: typeof args.targetDate === 'string' ? args.targetDate : undefined,
-          });
-        }
-      } else if (name === 'log_savings_contribution') {
-        if (typeof args.goalName !== 'string') {
-          toolResult = { success: false, error: 'goalName must be a string' };
-        } else if (typeof args.amount !== 'number') {
-          toolResult = { success: false, error: 'amount must be a number' };
-        } else {
-          toolResult = await handlers.logSavingsContribution({ goalName: args.goalName, amount: args.amount });
-        }
-      } else {
-        toolResult = { success: false, error: `Unknown tool: ${name}` };
+    // Run sequentially, not in parallel: a later call in the same turn (e.g. add_bill right after
+    // start_cycle) can depend on an earlier one having already taken effect, and sequential
+    // execution avoids any doubt about DB write ordering for a single user's actions.
+    const toolMessages: GroqMessage[] = [];
+    for (const toolCall of toolCalls) {
+      let args: Record<string, unknown>;
+      try {
+        args = JSON.parse(toolCall.function.arguments);
+      } catch {
+        args = {};
       }
-    } catch (toolError) {
-      // The tool ran and failed (e.g. a DB error) — distinct from never reaching Groq at all.
-      // Converting this into a normal {success:false} result lets it flow through the existing
-      // Groq-relay path, where the model can explain the failure conversationally.
-      console.error(`Tool handler for "${name}" threw`, toolError);
-      toolResult = { success: false, error: 'That action failed — try again.' };
+      const name = toolCall.function.name;
+
+      let toolResult: ToolResult;
+      try {
+        toolResult = await dispatchTool(name, args, handlers);
+      } catch (toolError) {
+        // The tool ran and failed (e.g. a DB error) — distinct from never reaching Groq at all.
+        // Converting this into a normal {success:false} result lets it flow through the existing
+        // Groq-relay path, where the model can explain the failure conversationally.
+        console.error(`Tool handler for "${name}" threw`, toolError);
+        toolResult = { success: false, error: 'That action failed — try again.' };
+      }
+      toolMessages.push({ role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(toolResult) });
     }
 
     const second = await callGroq([
       ...messages,
       { role: 'assistant', content: first.message.content ?? null, tool_calls: first.message.tool_calls },
-      { role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(toolResult) },
+      ...toolMessages,
     ]);
 
     return second.message.content ?? FALLBACK_REPLY;

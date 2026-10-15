@@ -19,6 +19,7 @@ describe('generateChatReply', () => {
     } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -45,6 +46,7 @@ describe('generateChatReply', () => {
     } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -89,6 +91,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn().mockResolvedValue({ success: true, remainingAmount: 700 }),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -128,6 +131,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn().mockResolvedValue({ success: true }),
       addIncomeSource: vi.fn(),
@@ -166,6 +170,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn().mockResolvedValue({ success: false, error: 'No active cycle found' }),
       addIncomeSource: vi.fn(),
@@ -191,6 +196,7 @@ describe('generateChatReply', () => {
     vi.mocked(fetch).mockRejectedValue(new Error('network error'));
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -211,6 +217,7 @@ describe('generateChatReply', () => {
     vi.mocked(fetch).mockRejectedValue(new Error('network error'));
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -234,6 +241,7 @@ describe('generateChatReply', () => {
     } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -274,6 +282,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn().mockRejectedValue(new Error('unexpected db failure')),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -332,6 +341,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn().mockResolvedValue({ success: true, id: 'income_1' }),
@@ -376,6 +386,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -414,6 +425,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -452,6 +464,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -496,6 +509,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -534,6 +548,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -573,6 +588,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -620,6 +636,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(),
       cancelCycle: vi.fn(),
       addIncomeSource: vi.fn(),
@@ -671,6 +688,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(), cancelCycle: vi.fn(), addIncomeSource: vi.fn(), logIncome: vi.fn(),
       addBill: vi.fn(), markBillPaid: vi.fn(), logExpense: vi.fn(),
       addSavingsGoal: vi.fn().mockResolvedValue({ success: true, id: 'goal_1' }),
@@ -705,6 +723,7 @@ describe('generateChatReply', () => {
       } as Response);
 
     const handlers = {
+      startCycle: vi.fn(),
       updateCycleAmount: vi.fn(), cancelCycle: vi.fn(), addIncomeSource: vi.fn(), logIncome: vi.fn(),
       addBill: vi.fn(), markBillPaid: vi.fn(), logExpense: vi.fn(), addSavingsGoal: vi.fn(),
       logSavingsContribution: vi.fn().mockResolvedValue({ success: true, id: 'contrib_1' }),
@@ -714,5 +733,210 @@ describe('generateChatReply', () => {
 
     expect(handlers.logSavingsContribution).toHaveBeenCalledWith({ goalName: 'Laptop fund', amount: 50 });
     expect(result).toBe('Nice, $50 closer to your laptop fund.');
+  });
+
+  it('calls startCycle when Groq requests start_cycle, then uses the follow-up reply', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'call_1', type: 'function', function: { name: 'start_cycle', arguments: JSON.stringify({ startingAmount: 500, endDate: '2026-10-20T00:00:00.000Z' }) } },
+                ],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: "Great, you're set up — $500 over the next few weeks." } }] }),
+      } as Response);
+
+    const handlers = {
+      startCycle: vi.fn().mockResolvedValue({ success: true, id: 'cycle_1' }),
+      updateCycleAmount: vi.fn(), cancelCycle: vi.fn(), addIncomeSource: vi.fn(), logIncome: vi.fn(),
+      addBill: vi.fn(), markBillPaid: vi.fn(), logExpense: vi.fn(), addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
+    };
+
+    const result = await generateChatReply('I have $500 and get paid again on the 20th', [], handlers);
+
+    expect(handlers.startCycle).toHaveBeenCalledWith({ startingAmount: 500, endDate: '2026-10-20T00:00:00.000Z' });
+    expect(result).toBe("Great, you're set up — $500 over the next few weeks.");
+  });
+
+  it('treats a non-numeric args.startingAmount as a validation failure relayed to Groq, without calling startCycle', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'call_1', type: 'function', function: { name: 'start_cycle', arguments: JSON.stringify({ startingAmount: 'five hundred', endDate: '2026-10-20T00:00:00.000Z' }) } },
+                ],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: "I couldn't tell how much you meant." } }] }),
+      } as Response);
+
+    const handlers = {
+      startCycle: vi.fn(),
+      updateCycleAmount: vi.fn(), cancelCycle: vi.fn(), addIncomeSource: vi.fn(), logIncome: vi.fn(),
+      addBill: vi.fn(), markBillPaid: vi.fn(), logExpense: vi.fn(), addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
+    };
+
+    const result = await generateChatReply('I have about five hundred bucks', [], handlers);
+
+    expect(result).toBe("I couldn't tell how much you meant.");
+    expect(handlers.startCycle).not.toHaveBeenCalled();
+  });
+
+  it('calls every tool Groq requests in a single turn, not just the first, and relays all their results', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'call_1', type: 'function', function: { name: 'start_cycle', arguments: JSON.stringify({ startingAmount: 500, endDate: '2026-10-20T00:00:00.000Z' }) } },
+                  { id: 'call_2', type: 'function', function: { name: 'add_bill', arguments: JSON.stringify({ name: 'Rent', amount: 800, dueDate: '2026-10-25T00:00:00.000Z' }) } },
+                ],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: "You're set up, and I've added your rent." } }] }),
+      } as Response);
+
+    const handlers = {
+      startCycle: vi.fn().mockResolvedValue({ success: true, id: 'cycle_1' }),
+      updateCycleAmount: vi.fn(), cancelCycle: vi.fn(), addIncomeSource: vi.fn(), logIncome: vi.fn(),
+      addBill: vi.fn().mockResolvedValue({ success: true, id: 'bill_1' }),
+      markBillPaid: vi.fn(), logExpense: vi.fn(), addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
+    };
+
+    const result = await generateChatReply('I have $500, rent is $800 due the 25th', [], handlers);
+
+    // Both handlers actually ran, in the order Groq returned them.
+    expect(handlers.startCycle).toHaveBeenCalledWith({ startingAmount: 500, endDate: '2026-10-20T00:00:00.000Z' });
+    expect(handlers.addBill).toHaveBeenCalledWith({ name: 'Rent', amount: 800, dueDate: '2026-10-25T00:00:00.000Z', recurrenceInterval: undefined });
+    expect(result).toBe("You're set up, and I've added your rent.");
+
+    // The follow-up request must carry one role:'tool' message per tool_call_id, each with that
+    // call's own result — not just the first one, and not merged into a single message.
+    const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
+    const toolMessages = secondCallBody.messages.filter((m: { role: string }) => m.role === 'tool');
+    expect(toolMessages).toHaveLength(2);
+    expect(toolMessages[0]).toEqual({ role: 'tool', tool_call_id: 'call_1', content: JSON.stringify({ success: true, id: 'cycle_1' }) });
+    expect(toolMessages[1]).toEqual({ role: 'tool', tool_call_id: 'call_2', content: JSON.stringify({ success: true, id: 'bill_1' }) });
+  });
+
+  it('relays a {success:false} result for one tool without stopping the other tool in the same turn', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'call_1', type: 'function', function: { name: 'start_cycle', arguments: JSON.stringify({ startingAmount: 500, endDate: '2026-10-20T00:00:00.000Z' }) } },
+                  { id: 'call_2', type: 'function', function: { name: 'log_expense', arguments: JSON.stringify({ amount: 20, description: 'Groceries' }) } },
+                ],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Logged the groceries, but the cycle setup failed.' } }] }),
+      } as Response);
+
+    const handlers = {
+      startCycle: vi.fn().mockResolvedValue({ success: false, error: 'You already have an active cycle.' }),
+      updateCycleAmount: vi.fn(), cancelCycle: vi.fn(), addIncomeSource: vi.fn(), logIncome: vi.fn(),
+      addBill: vi.fn(), markBillPaid: vi.fn(),
+      logExpense: vi.fn().mockResolvedValue({ success: true, id: 'expense_1' }),
+      addSavingsGoal: vi.fn(), logSavingsContribution: vi.fn(),
+    };
+
+    const result = await generateChatReply('I have $500 and spent $20 on groceries', [], handlers);
+
+    expect(handlers.startCycle).toHaveBeenCalled();
+    expect(handlers.logExpense).toHaveBeenCalledWith({ amount: 20, description: 'Groceries', categoryName: undefined });
+    expect(result).toBe('Logged the groceries, but the cycle setup failed.');
+  });
+
+  it('relays a thrown error from one tool in a multi-tool turn as {success:false}, without aborting the other tool', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'call_1', type: 'function', function: { name: 'start_cycle', arguments: JSON.stringify({ startingAmount: 500, endDate: '2026-10-20T00:00:00.000Z' }) } },
+                  { id: 'call_2', type: 'function', function: { name: 'log_expense', arguments: JSON.stringify({ amount: 20, description: 'Groceries' }) } },
+                ],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'The cycle setup failed, but groceries were logged.' } }] }),
+      } as Response);
+
+    const handlers = {
+      startCycle: vi.fn().mockRejectedValue(new Error('unexpected db failure')),
+      updateCycleAmount: vi.fn(), cancelCycle: vi.fn(), addIncomeSource: vi.fn(), logIncome: vi.fn(),
+      addBill: vi.fn(), markBillPaid: vi.fn(),
+      logExpense: vi.fn().mockResolvedValue({ success: true, id: 'expense_1' }),
+      addSavingsGoal: vi.fn(), logSavingsContribution: vi.fn(),
+    };
+
+    const result = await generateChatReply('I have $500 and spent $20 on groceries', [], handlers);
+
+    expect(result).toBe('The cycle setup failed, but groceries were logged.');
+    expect(handlers.logExpense).toHaveBeenCalled();
+
+    const secondCallBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
+    const toolMessages = secondCallBody.messages.filter((m: { role: string }) => m.role === 'tool');
+    expect(JSON.parse(toolMessages[0].content)).toEqual({ success: false, error: 'That action failed — try again.' });
+    expect(JSON.parse(toolMessages[1].content)).toEqual({ success: true, id: 'expense_1' });
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 });

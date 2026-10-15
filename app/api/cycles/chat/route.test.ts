@@ -5,7 +5,7 @@ import { prismaMock } from '@/tests/mocks/prisma';
 
 vi.mock('@/lib/auth/session', () => ({ getCurrentUser: vi.fn() }));
 vi.mock('@/lib/ai/chat', () => ({ generateChatReply: vi.fn() }));
-vi.mock('@/lib/moneyCycle/actions', () => ({ updateCycleAmount: vi.fn(), cancelCycle: vi.fn() }));
+vi.mock('@/lib/moneyCycle/actions', () => ({ createCycle: vi.fn(), updateCycleAmount: vi.fn(), cancelCycle: vi.fn() }));
 vi.mock('@/lib/income/actions', () => ({ addIncomeSource: vi.fn(), logIncomeEntry: vi.fn() }));
 vi.mock('@/lib/bills/actions', () => ({ addBill: vi.fn(), markBillPaid: vi.fn() }));
 vi.mock('@/lib/expenses/actions', () => ({ logExpense: vi.fn() }));
@@ -13,6 +13,7 @@ vi.mock('@/lib/savingsGoals/actions', () => ({ addSavingsGoal: vi.fn(), logSavin
 
 import { getCurrentUser } from '@/lib/auth/session';
 import { generateChatReply } from '@/lib/ai/chat';
+import { createCycle } from '@/lib/moneyCycle/actions';
 import { addIncomeSource, logIncomeEntry } from '@/lib/income/actions';
 import { addBill, markBillPaid } from '@/lib/bills/actions';
 import { logExpense } from '@/lib/expenses/actions';
@@ -243,19 +244,82 @@ describe('POST /api/cycles/chat', () => {
     expect(logSavingsContribution).toHaveBeenCalledWith('user_1', { goalName: 'Laptop fund', amount: 50 });
   });
 
-  it('returns 400 when there is no active cycle', async () => {
+  it('binds the startCycle handler to user.userId and converts endDate to a Date, even when a cycle already exists', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({ id: 'cycle_1', userId: 'user_1', status: 'ACTIVE' } as never);
+    prismaMock.coachMessage.findMany.mockResolvedValue([]);
+    prismaMock.coachMessage.create.mockResolvedValue({} as never);
+    vi.mocked(generateChatReply).mockResolvedValue('Got it.');
+    vi.mocked(createCycle).mockResolvedValue({ success: false, error: 'You already have an active cycle.' });
+
+    await POST(new NextRequest('http://localhost/api/cycles/chat', { method: 'POST', body: JSON.stringify({ message: 'hi' }) }));
+
+    const handlers = vi.mocked(generateChatReply).mock.calls[0][2];
+    await handlers.startCycle({ startingAmount: 500, endDate: '2026-10-20T00:00:00.000Z' });
+
+    expect(createCycle).toHaveBeenCalledWith('user_1', { startingAmount: 500, endDate: new Date('2026-10-20T00:00:00.000Z') });
+  });
+
+  it('when there is no active cycle, still calls generateChatReply (with empty history) instead of blocking entirely', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
     prismaMock.moneyCycle.findFirst.mockResolvedValue(null);
+    vi.mocked(generateChatReply).mockResolvedValue("Sounds good — I've set that up for you.");
 
     const res = await POST(
       new NextRequest('http://localhost/api/cycles/chat', {
         method: 'POST',
-        body: JSON.stringify({ message: 'hi' }),
+        body: JSON.stringify({ message: 'I have $500, budgeting until the 20th' }),
       })
     );
 
-    expect(res.status).toBe(400);
-    expect(generateChatReply).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.reply).toBe("Sounds good — I've set that up for you.");
+    expect(generateChatReply).toHaveBeenCalledWith('I have $500, budgeting until the 20th', [], expect.anything());
+  });
+
+  it('when start_cycle succeeds inside the no-cycle bootstrap turn, retroactively persists the exchange under the new cycle', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    // First lookup (before calling the AI): no active cycle yet. Second lookup (after): the new
+    // cycle start_cycle just created, simulating a successful bootstrap inside generateChatReply.
+    prismaMock.moneyCycle.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'cycle_new', userId: 'user_1', status: 'ACTIVE' } as never);
+    vi.mocked(generateChatReply).mockResolvedValue("You're all set up!");
+    prismaMock.coachMessage.create.mockResolvedValue({} as never);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cycles/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'I have $500, budgeting until the 20th' }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.coachMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cycleId: 'cycle_new', kind: 'USER', content: 'I have $500, budgeting until the 20th' }) })
+    );
+    expect(prismaMock.coachMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cycleId: 'cycle_new', kind: 'CHAT', content: "You're all set up!" }) })
+    );
+  });
+
+  it('when there is no active cycle and the AI does not create one, does not write any CoachMessage at all', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    // Both lookups return null: no cycle before the AI call, and still none after — the user asked
+    // something unrelated to starting a cycle.
+    prismaMock.moneyCycle.findFirst.mockResolvedValue(null);
+    vi.mocked(generateChatReply).mockResolvedValue('Once you start a cycle, I can help track that.');
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cycles/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'what is a safe-to-spend balance?' }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.coachMessage.create).not.toHaveBeenCalled();
   });
 
   it('accepts a message right at the 3000-character limit', async () => {
