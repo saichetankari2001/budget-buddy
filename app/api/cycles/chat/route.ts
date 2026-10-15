@@ -11,7 +11,11 @@ import { addBill, markBillPaid } from '@/lib/bills/actions';
 import { logExpense } from '@/lib/expenses/actions';
 import { addSavingsGoal, logSavingsContribution } from '@/lib/savingsGoals/actions';
 
-const chatMessageSchema = z.object({ message: z.string().min(1).max(500) });
+// 3000 chars comfortably covers a user laying out their whole financial situation in one message
+// (bills, subscriptions, income sources, a savings goal) — the AI context window and DB column
+// (CoachMessage.content is an unbounded Postgres TEXT) impose no real constraint here; this is
+// purely an anti-abuse ceiling, not a conversational one.
+const chatMessageSchema = z.object({ message: z.string().min(1).max(3000) });
 
 export const maxDuration = 20;
 

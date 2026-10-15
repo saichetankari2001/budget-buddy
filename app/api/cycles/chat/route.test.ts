@@ -258,6 +258,38 @@ describe('POST /api/cycles/chat', () => {
     expect(generateChatReply).not.toHaveBeenCalled();
   });
 
+  it('accepts a message right at the 3000-character limit', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({ id: 'cycle_1', userId: 'user_1', status: 'ACTIVE' } as never);
+    prismaMock.coachMessage.create.mockResolvedValue({} as never);
+    prismaMock.coachMessage.findMany.mockResolvedValue([]);
+    vi.mocked(generateChatReply).mockResolvedValue('Got it.');
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cycles/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'a'.repeat(3000) }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects a message over the 3000-character limit', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
+    prismaMock.moneyCycle.findFirst.mockResolvedValue({ id: 'cycle_1', userId: 'user_1', status: 'ACTIVE' } as never);
+
+    const res = await POST(
+      new NextRequest('http://localhost/api/cycles/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'a'.repeat(3001) }),
+      })
+    );
+
+    expect(res.status).toBe(400);
+    expect(generateChatReply).not.toHaveBeenCalled();
+  });
+
   it('returns 401 when not authenticated', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null);
 
