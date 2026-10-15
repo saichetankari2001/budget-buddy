@@ -17,7 +17,9 @@ import { addSavingsGoal, logSavingsContribution } from '@/lib/savingsGoals/actio
 // purely an anti-abuse ceiling, not a conversational one.
 const chatMessageSchema = z.object({ message: z.string().min(1).max(3000) });
 
-export const maxDuration = 20;
+// Up to 5 sequential Groq calls (see MAX_TOOL_ROUNDS in lib/ai/chat.ts), each with its own 9s
+// timeout — 55s leaves margin under Vercel's 60s Hobby-plan ceiling for the worst case.
+export const maxDuration = 55;
 
 const HISTORY_LIMIT = 10;
 

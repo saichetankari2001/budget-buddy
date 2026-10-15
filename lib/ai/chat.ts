@@ -360,52 +360,59 @@ export async function generateChatReply(
       content: `Today's date is ${startOfSydneyDay(new Date()).toISOString().slice(0, 10)} (Australia/Sydney). When the user gives a date with no year (e.g. "by December", "next month", "the 5th"), resolve it to the next real occurrence of that date on or after today — never a date in the past, and never a year from your training data. You are a friendly personal-finance coach speaking directly to the user (use "you"). They are new to budgeting and have no prior financial-management experience. All amounts are in Australian dollars (AUD). When a message describes several distinct things to act on (e.g. a starting cycle plus a bill plus an income source), call a tool for every one of them in this same turn rather than only the first — you are not limited to one tool call per message. Keep routine confirmations (e.g. logging an expense or income) short — one or two sentences. When a message naturally touches a money concept worth understanding (e.g. why a category is close to its limit, what a safe-to-spend balance means), briefly explain it in plain language so they build real financial awareness over time. Do not use markdown formatting.`,
     };
 
-    const messages: GroqMessage[] = [
+    let messages: GroqMessage[] = [
       systemMessage,
       ...history.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: message },
     ];
 
-    const first = await callGroq(messages);
+    // A single user message can need more than one round of tool calls — e.g. the model tries
+    // start_cycle, is told a cycle already exists, and then calls add_bill instead on the next
+    // round. Loop until the model finally replies with text, bounded so a model that never
+    // settles can't hang the request indefinitely.
+    const MAX_TOOL_ROUNDS = 5;
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const response = await callGroq(messages);
 
-    const toolCalls = first.message.tool_calls;
-    if (!toolCalls || toolCalls.length === 0) {
-      return first.message.content ?? FALLBACK_REPLY;
+      const toolCalls = response.message.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) {
+        return response.message.content ?? FALLBACK_REPLY;
+      }
+
+      // Run sequentially, not in parallel: a later call in the same turn (e.g. add_bill right after
+      // start_cycle) can depend on an earlier one having already taken effect, and sequential
+      // execution avoids any doubt about DB write ordering for a single user's actions.
+      const toolMessages: GroqMessage[] = [];
+      for (const toolCall of toolCalls) {
+        let args: Record<string, unknown>;
+        try {
+          args = JSON.parse(toolCall.function.arguments);
+        } catch {
+          args = {};
+        }
+        const name = toolCall.function.name;
+
+        let toolResult: ToolResult;
+        try {
+          toolResult = await dispatchTool(name, args, handlers);
+        } catch (toolError) {
+          // The tool ran and failed (e.g. a DB error) — distinct from never reaching Groq at all.
+          // Converting this into a normal {success:false} result lets it flow through the existing
+          // Groq-relay path, where the model can explain the failure conversationally.
+          console.error(`Tool handler for "${name}" threw`, toolError);
+          toolResult = { success: false, error: 'That action failed — try again.' };
+        }
+        toolMessages.push({ role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(toolResult) });
+      }
+
+      messages = [
+        ...messages,
+        { role: 'assistant', content: response.message.content ?? null, tool_calls: response.message.tool_calls },
+        ...toolMessages,
+      ];
     }
 
-    // Run sequentially, not in parallel: a later call in the same turn (e.g. add_bill right after
-    // start_cycle) can depend on an earlier one having already taken effect, and sequential
-    // execution avoids any doubt about DB write ordering for a single user's actions.
-    const toolMessages: GroqMessage[] = [];
-    for (const toolCall of toolCalls) {
-      let args: Record<string, unknown>;
-      try {
-        args = JSON.parse(toolCall.function.arguments);
-      } catch {
-        args = {};
-      }
-      const name = toolCall.function.name;
-
-      let toolResult: ToolResult;
-      try {
-        toolResult = await dispatchTool(name, args, handlers);
-      } catch (toolError) {
-        // The tool ran and failed (e.g. a DB error) — distinct from never reaching Groq at all.
-        // Converting this into a normal {success:false} result lets it flow through the existing
-        // Groq-relay path, where the model can explain the failure conversationally.
-        console.error(`Tool handler for "${name}" threw`, toolError);
-        toolResult = { success: false, error: 'That action failed — try again.' };
-      }
-      toolMessages.push({ role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(toolResult) });
-    }
-
-    const second = await callGroq([
-      ...messages,
-      { role: 'assistant', content: first.message.content ?? null, tool_calls: first.message.tool_calls },
-      ...toolMessages,
-    ]);
-
-    return second.message.content ?? FALLBACK_REPLY;
+    return FALLBACK_REPLY;
   } catch (error) {
     console.error('generateChatReply failed', error);
     if (error instanceof GroqRateLimitError) {

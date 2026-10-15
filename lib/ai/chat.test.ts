@@ -1017,4 +1017,94 @@ describe('generateChatReply', () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
     consoleErrorSpy.mockRestore();
   });
+
+  it('keeps going when the SECOND Groq call also requests a tool instead of replying with text, rather than falling back to the generic message', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'start_cycle', arguments: JSON.stringify({ startingAmount: 500, endDate: '2026-10-20T00:00:00.000Z' }) } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_2', type: 'function', function: { name: 'add_bill', arguments: JSON.stringify({ name: 'Rent', amount: 800, dueDate: '2026-10-31T00:00:00.000Z' }) } }],
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'You already had a cycle, so I added the rent bill to it instead.' } }] }),
+      } as Response);
+
+    const handlers = {
+      startCycle: vi.fn().mockResolvedValue({ success: false, error: 'You already have an active cycle.' }),
+      updateCycleAmount: vi.fn(),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn().mockResolvedValue({ success: true, id: 'bill_1' }),
+      markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
+    };
+
+    const result = await generateChatReply('I have $500 and rent is $800 due end of month', [], handlers);
+
+    expect(result).toBe('You already had a cycle, so I added the rent bill to it instead.');
+    expect(handlers.addBill).toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns the generic fallback (not an empty/undefined reply) if the model never settles on a text reply within the round cap', async () => {
+    const alwaysAnotherToolCall = {
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{ id: 'call_x', type: 'function', function: { name: 'update_cycle_amount', arguments: '{"newAmount":700}' } }],
+            },
+          },
+        ],
+      }),
+    } as Response;
+    vi.mocked(fetch).mockResolvedValue(alwaysAnotherToolCall);
+
+    const handlers = {
+      startCycle: vi.fn(),
+      updateCycleAmount: vi.fn().mockResolvedValue({ success: true, remainingAmount: 700 }),
+      cancelCycle: vi.fn(),
+      addIncomeSource: vi.fn(),
+      logIncome: vi.fn(),
+      addBill: vi.fn(),
+      markBillPaid: vi.fn(),
+      logExpense: vi.fn(),
+      addSavingsGoal: vi.fn(),
+      logSavingsContribution: vi.fn(),
+    };
+
+    const result = await generateChatReply('change it to 700', [], handlers);
+
+    expect(result).toBe("Sorry, I couldn't catch that — try again in a moment.");
+  });
 });
